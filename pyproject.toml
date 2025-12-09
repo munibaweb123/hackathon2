@@ -19,6 +19,7 @@ classifiers = [
 ]
 dependencies = [
     "rich>=14.2.0",
+    "python-dateutil>=2.8.0",
 ]
 
 [project.scripts]

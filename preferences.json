@@ -1,0 +1,5 @@
+{
+  "default_reminder": "minutes_15",
+  "default_reminder_custom": null,
+  "notifications_enabled": true
+}

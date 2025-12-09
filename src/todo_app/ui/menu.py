@@ -5,8 +5,11 @@ from typing import Optional
 from ..models import Priority
 from ..services.task_service import TaskService
 from ..services.validators import ValidationError
+from ..services.preferences_service import PreferencesService
+from ..services.reminder_service import add_reminder, check_due_reminders, mark_as_shown
+from ..services.recurrence_service import update_series, delete_series, stop_recurrence
 from .console import Console
-from .display import display_task_detail, display_tasks
+from .display import display_task_detail, display_tasks, show_reminder_notification
 from .prompts import Prompts
 
 
@@ -31,6 +34,7 @@ class Menu:
         """
         self._console = console if console is not None else Console()
         self._service = service if service is not None else TaskService()
+        self._preferences = PreferencesService()
         self._prompts = Prompts(self._console)
         self._running = True
 
@@ -43,9 +47,19 @@ class Menu:
                 self._show_menu()
                 choice = self._console.input("Enter choice: ").strip()
                 self._handle_choice(choice)
+                # Check for due reminders after each action
+                self.check_reminders()
             except KeyboardInterrupt:
                 self._console.blank()
                 self._handle_exit()
+
+    def check_reminders(self) -> None:
+        """Check and display any due reminders."""
+        due_reminders = check_due_reminders(self._service._store)
+
+        for reminder, task in due_reminders:
+            show_reminder_notification(self._console, reminder, task)
+            mark_as_shown(reminder, task, self._service._store)
 
     def _show_menu(self) -> None:
         """Display the main menu options."""
@@ -58,7 +72,8 @@ class Menu:
         self._console.print("6. Search tasks")
         self._console.print("7. Filter tasks")
         self._console.print("8. Sort tasks")
-        self._console.print("9. Exit")
+        self._console.print("9. Settings")
+        self._console.print("0. Exit")
         self._console.blank()
 
     def _handle_choice(self, choice: str) -> None:
@@ -72,14 +87,15 @@ class Menu:
             "6": self._search_tasks_flow,
             "7": self._filter_tasks_flow,
             "8": self._sort_tasks_flow,
-            "9": self._handle_exit,
+            "9": self._settings_flow,
+            "0": self._handle_exit,
         }
 
         handler = handlers.get(choice)
         if handler:
             handler()
         else:
-            self._console.error("Invalid choice. Please enter a number 1-9.")
+            self._console.error("Invalid choice. Please enter a number 0-9.")
 
     def _handle_exit(self) -> None:
         """Handle exit request."""
@@ -96,19 +112,53 @@ class Menu:
         title = self._prompts.prompt_title()
         description = self._prompts.prompt_description()
         due_date = self._prompts.prompt_due_date()
+
+        # Prompt for due time only if due date is set
+        due_time = None
+        if due_date:
+            due_time = self._prompts.prompt_due_time()
+
         priority = self._prompts.prompt_priority()
         categories = self._prompts.prompt_categories()
+
+        # Prompt for recurrence (only if due date is set)
+        recurrence = None
+        if due_date:
+            recurrence = self._prompts.prompt_recurrence()
 
         task = self._service.add_task(
             title=title,
             description=description,
             due_date=due_date,
+            due_time=due_time,
             priority=priority,
             categories=categories,
+            recurrence=recurrence,
         )
+
+        # Prompt for reminder (only if due date is set)
+        if due_date:
+            # Check if there's a default reminder
+            default_reminder = self._preferences.get_default_reminder_offset()
+            if default_reminder:
+                offset, custom_minutes = default_reminder
+                add_reminder(task, offset, custom_minutes)
+                self._service._store.update_task(task)
+                self._console.info(f"Default reminder applied: {task.reminders[0].get_display_text()}")
+            else:
+                # Prompt for reminder if no default
+                reminder_result = self._prompts.prompt_reminder()
+                if reminder_result:
+                    offset, custom_minutes = reminder_result
+                    add_reminder(task, offset, custom_minutes)
+                    self._service._store.update_task(task)
 
         self._console.blank()
         self._console.success(f"Task #{task.id} created successfully!")
+        if task.is_recurring():
+            self._console.info(str(task.recurrence))
+        if task.has_reminders():
+            self._console.info(f"Reminder set: {task.reminders[0].get_display_text()}")
         display_task_detail(self._console, task)
 
     # ========== User Story 2: View Tasks ==========
@@ -145,8 +195,17 @@ class Menu:
 
         new_status = "complete" if task.status.value == "incomplete" else "incomplete"
 
-        if self._service.toggle_status(task_id):
+        success, next_instance = self._service.toggle_status(task_id)
+        if success:
             self._console.success(f"Task #{task_id} marked as {new_status}.")
+
+            # Show next instance created message for recurring tasks
+            if next_instance:
+                self._console.blank()
+                self._console.success(
+                    f"Next recurring instance created: Task #{next_instance.id} "
+                    f"(due: {next_instance.due_date})"
+                )
         else:
             self._console.error(f"Failed to toggle task #{task_id}.")
 
@@ -176,6 +235,20 @@ class Menu:
         # Show current values
         display_task_detail(self._console, task)
 
+        # For recurring tasks, ask about scope
+        scope = "single"
+        if task.is_recurring():
+            scope = self._prompts.prompt_series_scope("edit")
+            if scope is None:
+                self._console.info("Update cancelled.")
+                return
+
+            # Option to stop recurrence
+            if scope == "single" and self._prompts.prompt_stop_recurrence():
+                stop_recurrence(task, self._service._store)
+                self._console.success("Recurrence stopped for this task.")
+                return
+
         # Get field to update
         field = self._prompts.prompt_update_field()
         if field is None:
@@ -201,13 +274,26 @@ class Menu:
             updates["categories"] = self._prompts.prompt_categories(task.categories)
 
         # Apply updates
-        if self._service.update_task(task_id, **updates):
-            self._console.success(f"Task #{task_id} updated successfully!")
-            updated_task = self._service.get_task_by_id(task_id)
-            if updated_task:
-                display_task_detail(self._console, updated_task)
+        if scope == "series" and task.series_id:
+            # Update all future instances in the series
+            count = update_series(
+                task.series_id,
+                self._service._store,
+                title=updates.get("title"),
+                description=updates.get("description"),
+                priority=updates.get("priority"),
+                categories=updates.get("categories"),
+            )
+            self._console.success(f"Updated {count} task(s) in the series!")
         else:
-            self._console.error(f"Failed to update task #{task_id}.")
+            # Update just this task
+            if self._service.update_task(task_id, **updates):
+                self._console.success(f"Task #{task_id} updated successfully!")
+                updated_task = self._service.get_task_by_id(task_id)
+                if updated_task:
+                    display_task_detail(self._console, updated_task)
+            else:
+                self._console.error(f"Failed to update task #{task_id}.")
 
     # ========== User Story 5: Delete Task ==========
 
@@ -232,15 +318,34 @@ class Menu:
             self._console.error(f"Task #{task_id} not found.")
             return
 
+        # For recurring tasks, ask about scope
+        scope = "single"
+        if task.is_recurring():
+            scope = self._prompts.prompt_series_scope("delete")
+            if scope is None:
+                self._console.info("Deletion cancelled.")
+                return
+
         # Confirm deletion
-        if not self._prompts.prompt_confirmation(f"Delete task '{task.title}'?"):
+        if scope == "series":
+            confirm_msg = f"Delete ALL future instances of '{task.title}'?"
+        else:
+            confirm_msg = f"Delete task '{task.title}'?"
+
+        if not self._prompts.prompt_confirmation(confirm_msg):
             self._console.info("Deletion cancelled.")
             return
 
-        if self._service.delete_task(task_id):
-            self._console.success(f"Task #{task_id} deleted successfully!")
+        if scope == "series" and task.series_id:
+            # Delete all future instances in the series
+            count = delete_series(task.series_id, self._service._store)
+            self._console.success(f"Deleted {count} task(s) in the series!")
         else:
-            self._console.error(f"Failed to delete task #{task_id}.")
+            # Delete just this task
+            if self._service.delete_task(task_id):
+                self._console.success(f"Task #{task_id} deleted successfully!")
+            else:
+                self._console.error(f"Failed to delete task #{task_id}.")
 
     # ========== User Story 6: Search Tasks ==========
 
@@ -278,6 +383,7 @@ class Menu:
             filter_by_category,
             filter_by_date_range,
             filter_by_priority,
+            filter_by_recurrence,
             filter_by_status,
         )
 
@@ -315,6 +421,10 @@ class Menu:
             start_date, end_date = self._prompts.prompt_date_range()
             results = filter_by_date_range(tasks, start_date, end_date)
             title = "Tasks by Date Range"
+
+        elif filter_type == "recurrence":
+            results = filter_by_recurrence(tasks, recurring_only=True)
+            title = "Recurring Tasks"
 
         else:
             self._console.error("Invalid filter type.")
@@ -365,3 +475,67 @@ class Menu:
             return
 
         display_tasks(self._console, results, title)
+
+    # ========== User Story 9: Settings ==========
+
+    def _settings_flow(self) -> None:
+        """Handle settings configuration."""
+        self._console.header("Settings")
+
+        # Show current preferences
+        prefs = self._preferences.get_preferences()
+
+        self._console.print("Current Settings:")
+        self._console.blank()
+
+        # Show default reminder
+        if prefs.default_reminder:
+            from ..models import ReminderOffset
+            try:
+                offset = ReminderOffset(prefs.default_reminder)
+                if offset == ReminderOffset.CUSTOM and prefs.default_reminder_custom:
+                    self._console.print(f"  Default Reminder: {prefs.default_reminder_custom} minutes before")
+                else:
+                    self._console.print(f"  Default Reminder: {offset}")
+            except ValueError:
+                self._console.print(f"  Default Reminder: {prefs.default_reminder}")
+        else:
+            self._console.print("  Default Reminder: None")
+
+        self._console.print(f"  Notifications: {'Enabled' if prefs.notifications_enabled else 'Disabled'}")
+        self._console.blank()
+
+        # Settings menu
+        self._console.print("What would you like to configure?")
+        self._console.print("  1. Set default reminder for new tasks")
+        self._console.print("  2. Clear default reminder")
+        self._console.print("  3. Toggle notifications")
+        self._console.print("  0. Back to main menu")
+        self._console.blank()
+
+        choice = self._console.input("Enter choice: ").strip()
+
+        if choice == "1":
+            reminder_result = self._prompts.prompt_reminder()
+            if reminder_result:
+                offset, custom_minutes = reminder_result
+                self._preferences.set_default_reminder(offset, custom_minutes)
+                self._console.success("Default reminder set!")
+            else:
+                self._console.info("No changes made.")
+
+        elif choice == "2":
+            self._preferences.clear_default_reminder()
+            self._console.success("Default reminder cleared!")
+
+        elif choice == "3":
+            new_state = not prefs.notifications_enabled
+            self._preferences.update_preferences(notifications_enabled=new_state)
+            state_text = "enabled" if new_state else "disabled"
+            self._console.success(f"Notifications {state_text}!")
+
+        elif choice == "0":
+            return
+
+        else:
+            self._console.error("Invalid choice.")

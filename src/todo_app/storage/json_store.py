@@ -23,7 +23,7 @@ class JsonStore:
     """
 
     DEFAULT_FILE = "tasks.json"
-    SCHEMA_VERSION = "1.0"
+    SCHEMA_VERSION = "1.1"  # Updated for recurring tasks and reminders
 
     def __init__(self, file_path: Optional[str] = None):
         """
@@ -103,10 +103,13 @@ class JsonStore:
         if dir_path and not dir_path.exists():
             dir_path.mkdir(parents=True, exist_ok=True)
 
+        # Always use the same directory as the target file for atomic rename to work
+        # This is critical for cross-device scenarios (e.g., WSL accessing Windows mounts)
+        temp_dir = str(self.file_path.parent.resolve())
         fd, temp_path = tempfile.mkstemp(
             suffix=".tmp",
             prefix="tasks_",
-            dir=str(dir_path) if dir_path.as_posix() != "." else None,
+            dir=temp_dir,
         )
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as f:

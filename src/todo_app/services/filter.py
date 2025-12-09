@@ -52,6 +52,21 @@ def filter_by_category(tasks: list[Task], category: str) -> list[Task]:
     ]
 
 
+def filter_by_recurrence(tasks: list[Task], recurring_only: bool = True) -> list[Task]:
+    """
+    Filter tasks by recurrence status.
+
+    Args:
+        tasks: List of tasks to filter.
+        recurring_only: If True, return only recurring tasks.
+                       If False, return only non-recurring tasks.
+
+    Returns:
+        List of tasks matching the recurrence criteria.
+    """
+    return [task for task in tasks if task.is_recurring() == recurring_only]
+
+
 def filter_by_date_range(
     tasks: list[Task],
     start_date: Optional[str] = None,

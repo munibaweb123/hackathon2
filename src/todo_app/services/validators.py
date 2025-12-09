@@ -4,7 +4,9 @@ import re
 from datetime import datetime
 from typing import Optional
 
-from ..models import Priority
+from dateutil.parser import parse as parse_datetime, ParserError
+
+from ..models import Priority, RecurrenceFrequency, RecurrencePattern
 
 
 class ValidationError(Exception):
@@ -165,3 +167,92 @@ def validate_task_id(task_id: str) -> int:
         raise ValidationError(f"Task ID must be a positive number (got {id_int})")
 
     return id_int
+
+
+def validate_time(time_str: str) -> Optional[str]:
+    """
+    Validate and normalize a time string to HH:MM:SS format.
+
+    Accepts flexible formats: "2:30pm", "14:30", "2:30 PM", "14:30:00", etc.
+
+    Args:
+        time_str: The time string to validate.
+
+    Returns:
+        Normalized time string (HH:MM:SS), or None if empty.
+
+    Raises:
+        ValidationError: If time format is invalid.
+    """
+    time_str = time_str.strip()
+
+    if not time_str:
+        return None
+
+    try:
+        # Use dateutil for flexible parsing
+        parsed = parse_datetime(time_str)
+        # Return normalized HH:MM:SS format
+        return parsed.strftime("%H:%M:%S")
+    except (ParserError, ValueError) as e:
+        raise ValidationError(f"Invalid time format: '{time_str}'. Use HH:MM or HH:MM AM/PM")
+
+
+def validate_recurrence(
+    frequency: str,
+    interval: int = 1,
+    day_of_week: Optional[list[int]] = None,
+    day_of_month: Optional[int] = None,
+    end_date: Optional[str] = None,
+) -> RecurrencePattern:
+    """
+    Validate and create a recurrence pattern.
+
+    Args:
+        frequency: Recurrence frequency (daily, weekly, monthly, custom)
+        interval: Every N periods (must be >= 1)
+        day_of_week: For weekly, list of days (0=Mon to 6=Sun)
+        day_of_month: For monthly, day of month (1-31)
+        end_date: Optional end date in YYYY-MM-DD format
+
+    Returns:
+        RecurrencePattern: Validated recurrence pattern.
+
+    Raises:
+        ValidationError: If any parameter is invalid.
+    """
+    # Validate frequency
+    frequency = frequency.strip().lower()
+    try:
+        freq_enum = RecurrenceFrequency(frequency)
+    except ValueError:
+        valid = ", ".join(f.value for f in RecurrenceFrequency)
+        raise ValidationError(f"Invalid frequency: '{frequency}'. Must be one of: {valid}")
+
+    # Validate interval
+    if interval < 1:
+        raise ValidationError(f"Interval must be at least 1 (got {interval})")
+
+    # Validate day_of_week
+    if day_of_week is None:
+        day_of_week = []
+    for day in day_of_week:
+        if not 0 <= day <= 6:
+            raise ValidationError(f"Day of week must be 0-6 (Mon-Sun), got {day}")
+
+    # Validate day_of_month
+    if day_of_month is not None:
+        if not 1 <= day_of_month <= 31:
+            raise ValidationError(f"Day of month must be 1-31, got {day_of_month}")
+
+    # Validate end_date
+    if end_date:
+        end_date = validate_due_date(end_date)
+
+    return RecurrencePattern(
+        frequency=freq_enum,
+        interval=interval,
+        day_of_week=day_of_week,
+        day_of_month=day_of_month,
+        end_date=end_date,
+    )

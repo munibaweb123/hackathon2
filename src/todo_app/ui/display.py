@@ -1,9 +1,10 @@
 """Task display components for the Todo application."""
 
+from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from ..models import Priority, Status, Task
+from ..models import Priority, Reminder, Status, Task
 from .console import Console
 
 
@@ -51,11 +52,19 @@ def create_task_table(tasks: list[Task], title: str = "Tasks") -> Table:
         priority_color = PRIORITY_COLORS[task.priority]
         priority_text = f"[{priority_color}]{task.priority.value.capitalize()}[/{priority_color}]"
 
-        # Due date
-        due_date = task.due_date or "-"
+        # Due date with optional time
+        if task.due_date:
+            due_display = task.due_date
+            if task.due_time:
+                # Show just HH:MM for compactness
+                due_display += f" {task.due_time[:5]}"
+        else:
+            due_display = "-"
 
-        # Categories
+        # Categories (with recurrence indicator)
         categories = ", ".join(task.categories) if task.categories else "-"
+        if task.is_recurring():
+            categories = f"🔄 {categories}" if categories != "-" else "🔄"
 
         # Title (strike through if complete)
         title = task.title
@@ -67,7 +76,7 @@ def create_task_table(tasks: list[Task], title: str = "Tasks") -> Table:
             status,
             title,
             priority_text,
-            due_date,
+            due_display,
             categories,
         )
 
@@ -110,7 +119,70 @@ def display_task_detail(console: Console, task: Task) -> None:
     console.print(f"  Description: {task.description or '(none)'}")
     console.print(f"  Priority: [{priority_color}]{task.priority.value.capitalize()}[/{priority_color}]")
     console.print(f"  Status: {status_text}")
-    console.print(f"  Due Date: {task.due_date or '(none)'}")
+
+    # Display due date with optional time
+    if task.due_date:
+        due_display = task.due_date
+        if task.due_time:
+            due_display += f" at {task.due_time}"
+        console.print(f"  Due: {due_display}")
+    else:
+        console.print("  Due Date: (none)")
+
     console.print(f"  Categories: {', '.join(task.categories) if task.categories else '(none)'}")
+
+    # Display recurrence info
+    if task.is_recurring():
+        console.print(f"  [cyan]{task.recurrence}[/cyan]")
+        if task.series_id:
+            console.print(f"  Series ID: {task.series_id[:8]}...")
+
+    # Display reminders
+    if task.has_reminders():
+        reminder_texts = [r.get_display_text() for r in task.reminders if not r.shown]
+        if reminder_texts:
+            console.print(f"  Reminders: {', '.join(reminder_texts)}")
+
     console.print(f"  Created: {task.created_at}")
+    console.blank()
+
+
+def show_reminder_notification(console: Console, reminder: Reminder, task: Task) -> None:
+    """
+    Display a reminder notification using a rich Panel.
+
+    Args:
+        console: The console to print to.
+        reminder: The reminder that triggered.
+        task: The associated task.
+    """
+    priority_color = PRIORITY_COLORS[task.priority]
+
+    # Build notification content
+    content_lines = [
+        f"[bold]{task.title}[/bold]",
+        "",
+        f"Due: {task.due_date}",
+    ]
+    if task.due_time:
+        content_lines[-1] += f" at {task.due_time}"
+
+    if task.description:
+        content_lines.append(f"Description: {task.description[:50]}...")
+
+    content_lines.append(f"Priority: [{priority_color}]{task.priority.value.capitalize()}[/{priority_color}]")
+
+    content = "\n".join(content_lines)
+
+    # Create and display panel
+    panel = Panel(
+        content,
+        title="[bold yellow]⏰ REMINDER[/bold yellow]",
+        subtitle=f"Task #{task.id}",
+        border_style="yellow",
+        padding=(1, 2),
+    )
+
+    console.blank()
+    console.print(panel)
     console.blank()
