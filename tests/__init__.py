@@ -1,1 +1,1 @@
-"""Tests package for Todo Console Application."""
+"""Tests for the Todo application."""

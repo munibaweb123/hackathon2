@@ -212,6 +212,8 @@ See `.specify/memory/constitution.md` for code quality, testing, performance, se
 ## Active Technologies
 - Python 3.13+ + None (standard library only - in-memory storage) (001-todo-console-app)
 - In-memory (Python list/dict data structures) (001-todo-console-app)
+- Python 3.13+ + rich (console formatting) (002-todo-console-app)
+- JSON file (`tasks.json` in working directory) (002-todo-console-app)
 
 ## Recent Changes
 - 001-todo-console-app: Added Python 3.13+ + None (standard library only - in-memory storage)

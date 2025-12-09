@@ -1,170 +1,224 @@
+"""Unit tests for TaskService."""
+
+import os
+import tempfile
+
 import pytest
-from src.todo_app.services.task_service import TaskList
-from src.todo_app.models.task import Task
+
+from todo_app.models import Priority, Status, Task
+from todo_app.services import TaskService
+from todo_app.storage import JsonStore
 
 
-class TestTaskList:
-    def test_add_task_success(self):
-        """Test adding a task successfully."""
-        task_list = TaskList()
+@pytest.fixture
+def temp_store():
+    """Create a TaskService with a temporary file."""
+    fd, path = tempfile.mkstemp(suffix=".json")
+    os.close(fd)
+    store = JsonStore(path)
+    service = TaskService(store)
+    yield service
+    if os.path.exists(path):
+        os.unlink(path)
 
-        result = task_list.add_task("Test task description")
 
-        assert result is not None
-        assert result.id == "TSK-001"
-        assert result.description == "Test task description"
-        assert len(task_list.tasks) == 1
+class TestTaskServiceAddTask:
+    """Tests for TaskService.add_task."""
 
-    def test_add_task_empty_description(self):
-        """Test adding a task with empty description."""
-        task_list = TaskList()
+    def test_add_task_with_minimal_fields(self, temp_store):
+        """Test adding a task with only title."""
+        task = temp_store.add_task(title="Test Task")
 
-        result = task_list.add_task("")
+        assert task.id == 1
+        assert task.title == "Test Task"
+        assert task.description == ""
+        assert task.due_date is None
+        assert task.priority == Priority.MEDIUM
+        assert task.categories == []
+        assert task.status == Status.INCOMPLETE
 
-        assert result is None
-        assert len(task_list.tasks) == 0
+    def test_add_task_with_all_fields(self, temp_store):
+        """Test adding a task with all fields."""
+        task = temp_store.add_task(
+            title="Full Task",
+            description="A complete task",
+            due_date="2024-12-31",
+            priority=Priority.HIGH,
+            categories=["work", "urgent"],
+        )
 
-    def test_add_task_whitespace_description(self):
-        """Test adding a task with whitespace-only description."""
-        task_list = TaskList()
+        assert task.id == 1
+        assert task.title == "Full Task"
+        assert task.description == "A complete task"
+        assert task.due_date == "2024-12-31"
+        assert task.priority == Priority.HIGH
+        assert task.categories == ["work", "urgent"]
+        assert task.status == Status.INCOMPLETE
 
-        result = task_list.add_task("   ")
+    def test_add_multiple_tasks_increments_id(self, temp_store):
+        """Test that IDs are incremented correctly."""
+        task1 = temp_store.add_task(title="Task 1")
+        task2 = temp_store.add_task(title="Task 2")
+        task3 = temp_store.add_task(title="Task 3")
 
-        assert result is None
-        assert len(task_list.tasks) == 0
+        assert task1.id == 1
+        assert task2.id == 2
+        assert task3.id == 3
 
-    def test_get_task_found(self):
+
+class TestTaskServiceGetTask:
+    """Tests for TaskService.get_task_by_id."""
+
+    def test_get_existing_task(self, temp_store):
         """Test getting an existing task."""
-        task_list = TaskList()
-        task_list.add_task("Test task")
+        temp_store.add_task(title="Test Task")
 
-        task = task_list.get_task("TSK-001")
+        task = temp_store.get_task_by_id(1)
 
         assert task is not None
-        assert task.id == "TSK-001"
-        assert task.description == "Test task"
+        assert task.title == "Test Task"
 
-    def test_get_task_not_found(self):
-        """Test getting a non-existing task."""
-        task_list = TaskList()
-        task_list.add_task("Test task")
-
-        task = task_list.get_task("TSK-999")
+    def test_get_nonexistent_task(self, temp_store):
+        """Test getting a task that doesn't exist."""
+        task = temp_store.get_task_by_id(999)
 
         assert task is None
 
-    def test_list_all_tasks(self):
-        """Test listing all tasks."""
-        task_list = TaskList()
-        task_list.add_task("Task 1")
-        task_list.add_task("Task 2")
 
-        tasks = task_list.list_all_tasks()
+class TestTaskServiceGetAllTasks:
+    """Tests for TaskService.get_all_tasks."""
 
-        assert len(tasks) == 2
-        assert tasks[0].id == "TSK-001"
-        assert tasks[1].id == "TSK-002"
+    def test_get_all_tasks_empty(self, temp_store):
+        """Test getting all tasks when store is empty."""
+        tasks = temp_store.get_all_tasks()
 
-    def test_find_tasks_by_status_completed(self):
-        """Test finding tasks by completed status."""
-        task_list = TaskList()
-        task1 = task_list.add_task("Task 1")
-        task2 = task_list.add_task("Task 2")
+        assert tasks == []
 
-        # Mark one task as complete
-        task_list.mark_task_complete("TSK-001")
+    def test_get_all_tasks_with_tasks(self, temp_store):
+        """Test getting all tasks."""
+        temp_store.add_task(title="Task 1")
+        temp_store.add_task(title="Task 2")
+        temp_store.add_task(title="Task 3")
 
-        completed_tasks = task_list.find_tasks_by_status(completed=True)
+        tasks = temp_store.get_all_tasks()
 
-        assert len(completed_tasks) == 1
-        assert completed_tasks[0].id == "TSK-001"
-        assert completed_tasks[0].completed == True
+        assert len(tasks) == 3
+        assert [t.title for t in tasks] == ["Task 1", "Task 2", "Task 3"]
 
-    def test_find_tasks_by_status_pending(self):
-        """Test finding tasks by pending status."""
-        task_list = TaskList()
-        task_list.add_task("Task 1")
-        task_list.add_task("Task 2")
 
-        # Mark one task as complete
-        task_list.mark_task_complete("TSK-001")
+class TestTaskServiceUpdateTask:
+    """Tests for TaskService.update_task."""
 
-        pending_tasks = task_list.find_tasks_by_status(completed=False)
+    def test_update_single_field(self, temp_store):
+        """Test updating a single field."""
+        temp_store.add_task(title="Original Title")
 
-        assert len(pending_tasks) == 1
-        assert pending_tasks[0].id == "TSK-002"
-        assert pending_tasks[0].completed == False
+        result = temp_store.update_task(1, title="Updated Title")
 
-    def test_update_task_description_success(self):
-        """Test updating a task description successfully."""
-        task_list = TaskList()
-        task_list.add_task("Original description")
+        assert result is True
+        task = temp_store.get_task_by_id(1)
+        assert task.title == "Updated Title"
 
-        result = task_list.update_task_description("TSK-001", "Updated description")
+    def test_update_multiple_fields(self, temp_store):
+        """Test updating multiple fields."""
+        temp_store.add_task(title="Original", priority=Priority.LOW)
 
-        assert result == True
-        task = task_list.get_task("TSK-001")
-        assert task.description == "Updated description"
+        result = temp_store.update_task(
+            1,
+            title="Updated",
+            description="New description",
+            priority=Priority.HIGH,
+        )
 
-    def test_update_task_description_not_found(self):
-        """Test updating a non-existing task description."""
-        task_list = TaskList()
-        task_list.add_task("Original description")
+        assert result is True
+        task = temp_store.get_task_by_id(1)
+        assert task.title == "Updated"
+        assert task.description == "New description"
+        assert task.priority == Priority.HIGH
 
-        result = task_list.update_task_description("TSK-999", "Updated description")
+    def test_update_preserves_unchanged_fields(self, temp_store):
+        """Test that unchanged fields are preserved."""
+        temp_store.add_task(
+            title="Original",
+            description="Original desc",
+            priority=Priority.HIGH,
+        )
 
-        assert result == False
+        temp_store.update_task(1, title="New Title")
 
-    def test_update_task_description_empty(self):
-        """Test updating a task description with empty string."""
-        task_list = TaskList()
-        task_list.add_task("Original description")
+        task = temp_store.get_task_by_id(1)
+        assert task.title == "New Title"
+        assert task.description == "Original desc"
+        assert task.priority == Priority.HIGH
 
-        result = task_list.update_task_description("TSK-001", "")
+    def test_update_nonexistent_task(self, temp_store):
+        """Test updating a task that doesn't exist."""
+        result = temp_store.update_task(999, title="New Title")
 
-        assert result == False
-        task = task_list.get_task("TSK-001")
-        assert task.description == "Original description"
+        assert result is False
 
-    def test_mark_task_complete(self):
-        """Test marking a task as complete."""
-        task_list = TaskList()
-        task_list.add_task("Test task")
 
-        result = task_list.mark_task_complete("TSK-001")
+class TestTaskServiceToggleStatus:
+    """Tests for TaskService.toggle_status."""
 
-        assert result == True
-        task = task_list.get_task("TSK-001")
-        assert task.completed == True
+    def test_toggle_incomplete_to_complete(self, temp_store):
+        """Test toggling from incomplete to complete."""
+        temp_store.add_task(title="Test Task")
 
-    def test_mark_task_incomplete(self):
-        """Test marking a task as incomplete."""
-        task_list = TaskList()
-        task_list.add_task("Test task")
-        task_list.mark_task_complete("TSK-001")  # First mark as complete
+        result = temp_store.toggle_status(1)
 
-        result = task_list.mark_task_incomplete("TSK-001")
+        assert result is True
+        task = temp_store.get_task_by_id(1)
+        assert task.status == Status.COMPLETE
 
-        assert result == True
-        task = task_list.get_task("TSK-001")
-        assert task.completed == False
+    def test_toggle_complete_to_incomplete(self, temp_store):
+        """Test toggling from complete to incomplete."""
+        temp_store.add_task(title="Test Task")
+        temp_store.toggle_status(1)  # Now complete
 
-    def test_remove_task_success(self):
-        """Test removing a task successfully."""
-        task_list = TaskList()
-        task_list.add_task("Test task")
+        result = temp_store.toggle_status(1)
 
-        result = task_list.remove_task("TSK-001")
+        assert result is True
+        task = temp_store.get_task_by_id(1)
+        assert task.status == Status.INCOMPLETE
 
-        assert result == True
-        assert len(task_list.tasks) == 0
+    def test_toggle_nonexistent_task(self, temp_store):
+        """Test toggling a task that doesn't exist."""
+        result = temp_store.toggle_status(999)
 
-    def test_remove_task_not_found(self):
-        """Test removing a non-existing task."""
-        task_list = TaskList()
-        task_list.add_task("Test task")
+        assert result is False
 
-        result = task_list.remove_task("TSK-999")
 
-        assert result == False
-        assert len(task_list.tasks) == 1
+class TestTaskServiceDeleteTask:
+    """Tests for TaskService.delete_task."""
+
+    def test_delete_existing_task(self, temp_store):
+        """Test deleting an existing task."""
+        temp_store.add_task(title="To Delete")
+
+        result = temp_store.delete_task(1)
+
+        assert result is True
+        assert temp_store.get_task_by_id(1) is None
+        assert temp_store.count() == 0
+
+    def test_delete_nonexistent_task(self, temp_store):
+        """Test deleting a task that doesn't exist."""
+        result = temp_store.delete_task(999)
+
+        assert result is False
+
+
+class TestTaskServiceCount:
+    """Tests for TaskService.count."""
+
+    def test_count_empty(self, temp_store):
+        """Test counting when store is empty."""
+        assert temp_store.count() == 0
+
+    def test_count_with_tasks(self, temp_store):
+        """Test counting with tasks."""
+        temp_store.add_task(title="Task 1")
+        temp_store.add_task(title="Task 2")
+
+        assert temp_store.count() == 2
