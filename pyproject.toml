@@ -1,34 +1,41 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "todo-app"
-version = "0.1.0"
-description = "A command-line todo application that stores tasks in memory"
+version = "1.0.0"
+description = "Professional console-based todo application"
 readme = "README.md"
 requires-python = ">=3.13"
 authors = [
     {name = "Todo App Developer"}
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    # No external dependencies for basic functionality
+    "rich>=14.2.0",
+    "python-dateutil>=2.8.0",
 ]
 
 [project.scripts]
-todo = "src.todo_app.main:main"
+todo = "todo_app.__main__:main"
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
-    "pytest>=7.0",
-    "pytest-cov>=4.0",
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
 ]
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.hatch.build.targets.wheel]
+packages = ["src/todo_app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"

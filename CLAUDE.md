@@ -208,3 +208,14 @@ Wait for consent; never auto-create ADRs. Group related decisions (stacks, authe
 
 ## Code Standards
 See `.specify/memory/constitution.md` for code quality, testing, performance, security, and architecture principles.
+
+## Active Technologies
+- Python 3.13+ + None (standard library only - in-memory storage) (001-todo-console-app)
+- In-memory (Python list/dict data structures) (001-todo-console-app)
+- Python 3.13+ + rich (console formatting) (002-todo-console-app)
+- JSON file (`tasks.json` in working directory) (002-todo-console-app)
+- Python 3.13+ + rich (console formatting), python-dateutil (recurrence calculation) (003-advanced-todo-features)
+- JSON file (`tasks.json` - extending existing JsonStore) (003-advanced-todo-features)
+
+## Recent Changes
+- 001-todo-console-app: Added Python 3.13+ + None (standard library only - in-memory storage)
