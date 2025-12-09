@@ -1,19 +1,25 @@
-# Todo In-Memory Python Console App
+# Todo Console App
 
-A command-line todo application that stores tasks in memory, built with Python 3.13+ and UV package manager.
+A feature-rich command-line todo application built with Python 3.13+ and UV package manager. Supports recurring tasks, reminders, due dates with times, and persistent JSON storage.
 
 ## Features
 
-- Add new tasks with title and description
-- View all tasks with completion status indicators ([X] / [ ])
+### Core Features
+- Add, view, update, and delete tasks
 - Mark tasks as complete/incomplete
-- Update task title and description
-- Delete tasks by ID
-- Auto-generated sequential task IDs
+- Set priority levels (high/medium/low)
+- Organize tasks with categories
+- Search tasks by keyword
+- Filter tasks by status, priority, category, date range, or recurrence
+- Sort tasks by due date, priority, title, or creation date
 
-## Important Note
-
-This application stores all tasks in memory only. Tasks are not persisted between application sessions. When you close and reopen the application, all tasks will be lost. This is by design as specified in the requirements (in-memory storage during application session).
+### Advanced Features
+- **Recurring Tasks**: Create daily, weekly, monthly, or custom recurring tasks that auto-regenerate when completed
+- **Due Time Support**: Set specific due times (e.g., "2:30pm" or "14:30") alongside dates
+- **Reminder Notifications**: Get console notifications before task deadlines
+- **Series Management**: Edit or delete entire recurring series or single instances
+- **Default Preferences**: Configure default reminder settings that auto-apply to new tasks
+- **Persistent Storage**: Tasks are saved to `tasks.json` and persist between sessions
 
 ## Prerequisites
 
@@ -24,25 +30,14 @@ This application stores all tasks in memory only. Tasks are not persisted betwee
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/munibaweb123/hackathon2.git
 cd hackathon_2
 
-# Create virtual environment with UV
-uv venv --python 3.13
-
-# Activate virtual environment
-# Linux/macOS:
-source .venv/bin/activate
-# Windows (PowerShell):
-.venv\Scripts\Activate.ps1
-# Windows (CMD):
-.venv\Scripts\activate.bat
-
-# Install the package
-uv pip install -e .
+# Install dependencies with UV
+uv sync
 
 # For development (includes pytest):
-uv pip install -e ".[dev]"
+uv sync --dev
 ```
 
 ## Usage
@@ -50,109 +45,219 @@ uv pip install -e ".[dev]"
 ### Start the Application
 
 ```bash
-python -m src.main
+uv run python -m todo_app
 ```
 
-### Example Session
+### Main Menu
 
 ```
-Welcome to Todo Console App!
-==============================
+=== Todo Application ===
 
-==============================
-       TODO APP MENU
-==============================
-1. Add Task
-2. View Tasks
-3. Mark Complete
-4. Mark Incomplete
-5. Update Task
-6. Delete Task
-7. Exit
-==============================
-Select option (1-7): 1
-
---- Add Task ---
-Enter title: Buy groceries
-Enter description (optional): Milk, eggs, bread
-Task added with ID: 1
-
-Select option (1-7): 2
-
---- All Tasks ---
-[ ] 1. Buy groceries
-    Milk, eggs, bread
-
-Select option (1-7): 3
-
---- Mark Complete ---
-Enter task ID: 1
-Task 1 marked as complete.
-
-Select option (1-7): 2
-
---- All Tasks ---
-[X] 1. Buy groceries
-    Milk, eggs, bread
-
-Select option (1-7): 7
-
-Goodbye!
+1. Add new task
+2. View all tasks
+3. Update task
+4. Delete task
+5. Mark task complete/incomplete
+6. Search tasks
+7. Filter tasks
+8. Sort tasks
+9. Settings
+0. Exit
 ```
 
-## Menu Options
+### Example: Create a Recurring Task
 
-| Option | Action | Description |
-|--------|--------|-------------|
-| 1 | Add Task | Create a new task with title and optional description |
-| 2 | View Tasks | Display all tasks with status indicators |
-| 3 | Mark Complete | Mark a task as done by ID |
-| 4 | Mark Incomplete | Mark a task as not done by ID |
-| 5 | Update Task | Modify title/description of existing task |
-| 6 | Delete Task | Remove a task permanently by ID |
-| 7 | Exit | Close the application |
+```
+Enter choice: 1
+
+Add New Task
+Title: Weekly team meeting
+Description (optional): Discuss project progress
+Due date (YYYY-MM-DD, optional): 2025-12-15
+Due time (e.g., 2:30pm or 14:30, optional): 10:00am
+Priority (high/medium/low): high
+Categories (comma-separated, optional): work, meetings
+
+Make this a recurring task?
+  1. No (one-time task)
+  2. Daily
+  3. Weekly
+  4. Monthly
+  5. Custom interval
+
+Enter choice (default 1): 3
+Repeat every N weeks (default 1): 1
+
+Set a reminder?
+  1. No reminder
+  2. At due time
+  3. 15 minutes before
+  4. 30 minutes before
+  5. 1 hour before
+  ...
+
+Enter choice (default 1): 5
+
+Task #1 created successfully!
+Repeats: weekly (every 1 week)
+Reminder set: 1 hour before
+```
+
+### Example: Complete a Recurring Task
+
+When you mark a recurring task as complete, the next instance is automatically created:
+
+```
+Enter choice: 5
+
+Toggle Task Status
+Enter task ID to toggle: 1
+
+Task #1 marked as complete.
+Next recurring instance created: Task #2 (due: 2025-12-22)
+```
+
+### Filter Options
+
+```
+Filter by:
+  1. Status (complete/incomplete)
+  2. Priority (high/medium/low)
+  3. Category
+  4. Due date range
+  5. Recurring tasks only
+  0. Cancel
+```
+
+### Settings Menu
+
+```
+Settings
+
+Current Settings:
+  Default Reminder: 1 hour before
+  Notifications: Enabled
+
+What would you like to configure?
+  1. Set default reminder for new tasks
+  2. Clear default reminder
+  3. Toggle notifications
+  0. Back to main menu
+```
 
 ## Project Structure
 
 ```
 hackathon_2/
 ├── src/
-│   ├── __init__.py
-│   ├── main.py              # Entry point
-│   ├── models/
-│   │   ├── __init__.py
-│   │   └── task.py          # Task dataclass
-│   ├── services/
-│   │   ├── __init__.py
-│   │   └── task_service.py  # Business logic
-│   └── cli/
+│   └── todo_app/
 │       ├── __init__.py
-│       └── menu.py          # Menu interface
+│       ├── __main__.py           # Entry point
+│       ├── models/
+│       │   ├── __init__.py
+│       │   ├── task.py           # Task model with recurrence & reminders
+│       │   ├── recurrence.py     # RecurrencePattern, RecurrenceFrequency
+│       │   └── reminder.py       # Reminder, ReminderOffset
+│       ├── services/
+│       │   ├── __init__.py
+│       │   ├── task_service.py   # Core task operations
+│       │   ├── recurrence_service.py  # Recurring task logic
+│       │   ├── reminder_service.py    # Reminder notifications
+│       │   ├── preferences_service.py # User preferences
+│       │   ├── filter.py         # Task filtering
+│       │   ├── sort.py           # Task sorting
+│       │   ├── search.py         # Task search
+│       │   └── validators.py     # Input validation
+│       ├── storage/
+│       │   ├── __init__.py
+│       │   ├── json_store.py     # JSON file persistence
+│       │   └── preferences.py    # Preferences storage
+│       └── ui/
+│           ├── __init__.py
+│           ├── menu.py           # Main menu system
+│           ├── display.py        # Task display formatting
+│           ├── prompts.py        # User input prompts
+│           └── console.py        # Console utilities
 ├── tests/
 │   ├── unit/
-│   └── integration/
-├── specs/                    # Feature specifications
+│   ├── integration/
+│   └── contract/
+├── specs/                        # Feature specifications
+├── tasks.json                    # Task storage (auto-created)
+├── preferences.json              # User preferences (auto-created)
 ├── pyproject.toml
 └── README.md
+```
+
+## Data Storage
+
+### tasks.json
+Tasks are automatically saved to `tasks.json` in the working directory:
+
+```json
+{
+  "version": "1.1",
+  "tasks": [
+    {
+      "id": 1,
+      "title": "Weekly team meeting",
+      "description": "Discuss project progress",
+      "status": "incomplete",
+      "priority": "high",
+      "categories": ["work", "meetings"],
+      "due_date": "2025-12-15",
+      "due_time": "10:00:00",
+      "recurrence": {
+        "frequency": "weekly",
+        "interval": 1
+      },
+      "series_id": "abc123-...",
+      "reminders": [
+        {
+          "offset": "1_hour",
+          "trigger_time": "2025-12-15T09:00:00"
+        }
+      ],
+      "created_at": "2025-12-09T10:30:00",
+      "updated_at": "2025-12-09T10:30:00"
+    }
+  ]
+}
+```
+
+### preferences.json
+User preferences are stored in `preferences.json`:
+
+```json
+{
+  "default_reminder": "1_hour",
+  "notifications_enabled": true
+}
 ```
 
 ## Development
 
 ```bash
 # Run tests
-pytest
+uv run pytest
 
 # Run with coverage
-pytest --cov=src --cov-report=term-missing
+uv run pytest --cov=src --cov-report=term-missing
 
 # Run specific test types
-pytest tests/unit/
-pytest tests/integration/
+uv run pytest tests/unit/
+uv run pytest tests/integration/
 ```
 
 ## Technology Stack
 
 - **Language**: Python 3.13+
 - **Package Manager**: UV
+- **Console UI**: Rich (tables, panels, formatting)
+- **Date Handling**: python-dateutil
+- **Storage**: JSON files
 - **Testing**: pytest
-- **Storage**: In-memory (dictionary)
+
+## License
+
+MIT License
