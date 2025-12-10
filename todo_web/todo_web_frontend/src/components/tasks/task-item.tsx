@@ -10,14 +10,18 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import type { Task } from '@/types';
+import { ReminderForm } from '@/components/reminders/reminder-form';
+import type { Task, Reminder } from '@/types';
 
 interface TaskItemProps {
   task: Task;
   onToggleComplete: (taskId: string) => Promise<void>;
   onEdit: (task: Task) => void;
   onDelete: (taskId: string) => Promise<void>;
+  onAddReminder: (task: Task) => void;
+  onManageReminders: (task: Task) => void;
 }
 
 const priorityColors = {
@@ -26,9 +30,10 @@ const priorityColors = {
   high: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
 };
 
-export function TaskItem({ task, onToggleComplete, onEdit, onDelete }: TaskItemProps) {
+export function TaskItem({ task, onToggleComplete, onEdit, onDelete, onAddReminder, onManageReminders }: TaskItemProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
+  const [showReminderForm, setShowReminderForm] = useState(false);
 
   const handleToggle = async () => {
     setIsToggling(true);
@@ -46,6 +51,14 @@ export function TaskItem({ task, onToggleComplete, onEdit, onDelete }: TaskItemP
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  const handleAddReminder = () => {
+    onAddReminder(task);
+  };
+
+  const handleManageReminders = () => {
+    onManageReminders(task);
   };
 
   return (
@@ -67,6 +80,47 @@ export function TaskItem({ task, onToggleComplete, onEdit, onDelete }: TaskItemP
           <Badge variant="secondary" className={priorityColors[task.priority]}>
             {task.priority}
           </Badge>
+          {task.is_recurring && (
+            <Badge variant="outline" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mr-1"
+              >
+                <path d="M21 12a9 9 0 1 0-9 9" />
+                <path d="M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.5 2.5" />
+                <path d="M12 7v5l3 3" />
+              </svg>
+              Recurring
+            </Badge>
+          )}
+          {task.reminders && task.reminders.length > 0 && (
+            <Badge variant="outline" className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mr-1"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 6v6l4 2" />
+              </svg>
+              {task.reminders.length} Reminder{task.reminders.length !== 1 ? 's' : ''}
+            </Badge>
+          )}
         </div>
 
         {task.description && (
@@ -108,6 +162,18 @@ export function TaskItem({ task, onToggleComplete, onEdit, onDelete }: TaskItemP
           <DropdownMenuItem onClick={() => onEdit(task)}>
             Edit
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={handleAddReminder}>
+            Add Reminder
+          </DropdownMenuItem>
+          {task.reminders && task.reminders.length > 0 && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleManageReminders}>
+                Manage Reminders
+              </DropdownMenuItem>
+            </>
+          )}
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={handleDelete}
             disabled={isDeleting}

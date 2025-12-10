@@ -9,6 +9,8 @@ interface TaskListProps {
   onToggleComplete: (taskId: string) => Promise<void>;
   onEdit: (task: Task) => void;
   onDelete: (taskId: string) => Promise<void>;
+  onAddReminder: (task: Task) => void;
+  onManageReminders: (task: Task) => void;
 }
 
 export function TaskList({
@@ -17,6 +19,8 @@ export function TaskList({
   onToggleComplete,
   onEdit,
   onDelete,
+  onAddReminder,
+  onManageReminders,
 }: TaskListProps) {
   if (isLoading) {
     return (
@@ -65,6 +69,8 @@ export function TaskList({
           onToggleComplete={onToggleComplete}
           onEdit={onEdit}
           onDelete={onDelete}
+          onAddReminder={onAddReminder}
+          onManageReminders={onManageReminders}
         />
       ))}
     </div>

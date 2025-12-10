@@ -72,6 +72,12 @@ export function Header() {
               <DropdownMenuItem asChild>
                 <Link href="/tasks">My Tasks</Link>
               </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/reminders">Reminders</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/preferences">Preferences</Link>
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={logout}

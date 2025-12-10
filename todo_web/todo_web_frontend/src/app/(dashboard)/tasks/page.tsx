@@ -7,9 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { TaskList } from '@/components/tasks/task-list';
 import { TaskForm } from '@/components/tasks/task-form';
 import { TaskFilters } from '@/components/tasks/task-filters';
+import { ReminderForm } from '@/components/reminders/reminder-form';
 import { useAuth } from '@/hooks/use-auth';
 import { useTasks } from '@/hooks/use-tasks';
-import type { Task, CreateTaskInput, UpdateTaskInput } from '@/types';
+import type { Task, CreateTaskInput, UpdateTaskInput, Reminder } from '@/types';
 
 export default function TasksPage() {
   const { user } = useAuth();
@@ -31,6 +32,8 @@ export default function TasksPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showReminderForm, setShowReminderForm] = useState(false);
+  const [selectedTaskForReminder, setSelectedTaskForReminder] = useState<Task | null>(null);
 
   const handleCreateTask = async (data: CreateTaskInput) => {
     setIsSubmitting(true);
@@ -77,6 +80,47 @@ export default function TasksPage() {
 
   const handleEdit = (task: Task) => {
     setEditingTask(task);
+  };
+
+  const handleAddReminder = (task: Task) => {
+    setSelectedTaskForReminder(task);
+    setShowReminderForm(true);
+  };
+
+  const handleManageReminders = (task: Task) => {
+    // In a real implementation, this would navigate to a reminders page
+    // For now, we'll just show a toast
+    toast.info(`Managing reminders for task: ${task.title}`);
+  };
+
+  const handleCreateReminder = async (data: { task_id: string; reminder_time: string; reminder_type?: 'email' | 'push' | 'sms'; message?: string }) => {
+    if (!user?.id) {
+      toast.error('User not authenticated');
+      return;
+    }
+
+    try {
+      const newReminder = await apiClient.createReminder(user.id, data);
+      toast.success('Reminder created successfully');
+      setShowReminderForm(false);
+      setSelectedTaskForReminder(null);
+
+      // Update the task in the list to include the new reminder
+      setTasks(prevTasks =>
+        prevTasks.map(task => {
+          if (task.id === data.task_id) {
+            return {
+              ...task,
+              reminders: task.reminders ? [...task.reminders, newReminder] : [newReminder]
+            };
+          }
+          return task;
+        })
+      );
+    } catch (err) {
+      console.error('Failed to create reminder:', err);
+      toast.error('Failed to create reminder');
+    }
   };
 
   return (
@@ -150,6 +194,8 @@ export default function TasksPage() {
             onToggleComplete={handleToggleComplete}
             onEdit={handleEdit}
             onDelete={handleDeleteTask}
+            onAddReminder={handleAddReminder}
+            onManageReminders={handleManageReminders}
           />
         </CardContent>
       </Card>
@@ -169,6 +215,15 @@ export default function TasksPage() {
         task={editingTask}
         onSubmit={handleUpdateTask}
         isLoading={isSubmitting}
+      />
+
+      {/* Reminder Form */}
+      <ReminderForm
+        open={showReminderForm}
+        onOpenChange={setShowReminderForm}
+        taskId={selectedTaskForReminder?.id || ''}
+        onSubmit={handleCreateReminder}
+        isLoading={false}
       />
     </div>
   );

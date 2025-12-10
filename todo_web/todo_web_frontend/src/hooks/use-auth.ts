@@ -69,7 +69,6 @@ export function useAuth() {
     setIsLoading(true);
     try {
       await signOut();
-      apiClient.clearToken();
       router.push('/login');
       router.refresh();
     } finally {
