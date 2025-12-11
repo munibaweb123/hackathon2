@@ -1,7 +1,8 @@
 """Reminder service for managing task reminders and notifications."""
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
+import time
 
 from ..models import Reminder, ReminderOffset, Task
 
@@ -62,18 +63,27 @@ def calculate_trigger_time(
     if not task.due_date:
         return None
 
-    # Parse due datetime
+    # Parse due datetime and make it timezone-aware (assuming local time is user's intended time)
     due_time = task.due_time or "23:59:00"
     due_datetime_str = f"{task.due_date}T{due_time}"
     due_datetime = datetime.fromisoformat(due_datetime_str)
 
+    # Make the due datetime timezone-aware by assuming it's in the local timezone
+    # For consistency, we'll treat the user input as local time and convert to UTC
+    local_tz = timezone(timedelta(seconds=-time.timezone))
+    due_datetime = due_datetime.replace(tzinfo=local_tz)
+
+    # Convert to UTC for consistent storage
+    due_datetime_utc = due_datetime.astimezone(timezone.utc)
+
     # Get minutes before
     minutes_before = offset.get_minutes(custom_minutes)
 
-    # Calculate trigger time
-    trigger_datetime = due_datetime - timedelta(minutes=minutes_before)
+    # Calculate trigger time in UTC
+    trigger_datetime = due_datetime_utc - timedelta(minutes=minutes_before)
 
-    return trigger_datetime.isoformat()
+    # Return as ISO string in UTC (with 'Z' suffix to indicate UTC)
+    return trigger_datetime.isoformat().replace('+00:00', 'Z')
 
 
 def check_due_reminders(store) -> list[tuple[Reminder, Task]]:
@@ -86,7 +96,7 @@ def check_due_reminders(store) -> list[tuple[Reminder, Task]]:
     Returns:
         List of (reminder, task) tuples for reminders that need to be shown.
     """
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     due_reminders = []
 
     for task in store.get_all_tasks():
@@ -96,7 +106,15 @@ def check_due_reminders(store) -> list[tuple[Reminder, Task]]:
 
             # Parse trigger time
             try:
-                trigger_time = datetime.fromisoformat(reminder.trigger_time)
+                # Handle both timezone-aware and naive datetime strings
+                if reminder.trigger_time.endswith('Z'):
+                    trigger_time = datetime.fromisoformat(reminder.trigger_time.replace('Z', '+00:00'))
+                elif '+' in reminder.trigger_time or reminder.trigger_time.count('-') > 2:
+                    # Already timezone-aware
+                    trigger_time = datetime.fromisoformat(reminder.trigger_time)
+                else:
+                    # Naive datetime, treat as UTC
+                    trigger_time = datetime.fromisoformat(reminder.trigger_time).replace(tzinfo=timezone.utc)
             except (ValueError, TypeError):
                 continue
 
@@ -180,7 +198,7 @@ def get_upcoming_reminders(store, hours: int = 24) -> list[tuple[Reminder, Task]
     Returns:
         List of (reminder, task) tuples sorted by trigger time.
     """
-    now = datetime.now()
+    now = datetime.now(timezone.utc)
     cutoff = now + timedelta(hours=hours)
     upcoming = []
 
@@ -190,7 +208,15 @@ def get_upcoming_reminders(store, hours: int = 24) -> list[tuple[Reminder, Task]
                 continue
 
             try:
-                trigger_time = datetime.fromisoformat(reminder.trigger_time)
+                # Handle both timezone-aware and naive datetime strings
+                if reminder.trigger_time.endswith('Z'):
+                    trigger_time = datetime.fromisoformat(reminder.trigger_time.replace('Z', '+00:00'))
+                elif '+' in reminder.trigger_time or reminder.trigger_time.count('-') > 2:
+                    # Already timezone-aware
+                    trigger_time = datetime.fromisoformat(reminder.trigger_time)
+                else:
+                    # Naive datetime, treat as UTC
+                    trigger_time = datetime.fromisoformat(reminder.trigger_time).replace(tzinfo=timezone.utc)
             except (ValueError, TypeError):
                 continue
 

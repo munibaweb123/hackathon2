@@ -3,10 +3,12 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import logging
 
 from .core.config import settings
 from .core.database import create_db_and_tables
-from .api import tasks, reminders, preferences, health, auth, auth_public
+from .api import tasks, reminders, preferences, health, auth, auth_public, notifications
+from .utils.reminder_scheduler import start_scheduler
 
 
 @asynccontextmanager
@@ -16,7 +18,13 @@ async def lifespan(app: FastAPI):
     print(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     create_db_and_tables()
     print("Database tables created/verified")
+
+    # Start the reminder scheduler
+    logging.info("Starting reminder scheduler...")
+    start_scheduler(interval=60)  # Check every 60 seconds
+
     yield
+
     # Shutdown: Cleanup if needed
     print("Shutting down...")
 
@@ -45,6 +53,7 @@ app.include_router(reminders.router, prefix=settings.API_PREFIX, tags=["Reminder
 app.include_router(preferences.router, prefix=settings.API_PREFIX, tags=["Preferences"])
 app.include_router(auth_public.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(notifications.router, tags=["Notifications"])
 
 
 @app.get("/")

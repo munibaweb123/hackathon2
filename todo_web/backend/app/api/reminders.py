@@ -1,6 +1,6 @@
 """Reminder API endpoints - CRUD operations for task reminders."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
@@ -99,11 +99,22 @@ async def create_reminder(
             detail="A reminder already exists for this task at the specified time",
         )
 
+    # Process the reminder_time to ensure timezone consistency
+    # If the datetime is naive (no timezone), assume it's in UTC
+    # If timezone-aware, convert to UTC for consistent storage
+    reminder_time = reminder_data.reminder_time
+    if reminder_time.tzinfo is None:
+        # Naive datetime - treat as UTC
+        reminder_time = reminder_time.replace(tzinfo=timezone.utc)
+    else:
+        # Timezone-aware datetime - convert to UTC
+        reminder_time = reminder_time.astimezone(timezone.utc)
+
     # Create reminder
     reminder = Reminder(
         task_id=reminder_data.task_id,
         user_id=user_id,
-        reminder_time=reminder_data.reminder_time,
+        reminder_time=reminder_time,
         reminder_type=reminder_data.reminder_type,
         message=reminder_data.message,
     )
@@ -174,6 +185,14 @@ async def update_reminder(
         elif key == "status" and value is not None:
             from ..models.reminder import ReminderStatus
             setattr(reminder, key, ReminderStatus(value))
+        elif key == "reminder_time" and value is not None:
+            # Handle timezone for reminder_time
+            if value.tzinfo is None:
+                # Naive datetime - treat as UTC
+                setattr(reminder, key, value.replace(tzinfo=timezone.utc))
+            else:
+                # Timezone-aware datetime - convert to UTC
+                setattr(reminder, key, value.astimezone(timezone.utc))
         else:
             setattr(reminder, key, value)
 
