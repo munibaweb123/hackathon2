@@ -27,7 +27,7 @@ class Reminder(SQLModel, table=True):
     __tablename__ = "reminders"
 
     id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    task_id: str = Field(foreign_key="tasks.id", index=True)
+    task_id: int = Field(foreign_key="tasks.id", index=True)
     user_id: str = Field(foreign_key="users.id", index=True)
     reminder_time: datetime = Field(index=True)
     reminder_type: ReminderType = Field(default=ReminderType.PUSH)

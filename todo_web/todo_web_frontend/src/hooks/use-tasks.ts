@@ -70,7 +70,7 @@ export function useTasks(userId: string | undefined) {
     }
   }, [userId]);
 
-  const updateTask = useCallback(async (taskId: string, input: UpdateTaskInput) => {
+  const updateTask = useCallback(async (taskId: number, input: UpdateTaskInput) => {
     if (!userId) throw new Error('User not authenticated');
 
     setIsLoading(true);
@@ -99,7 +99,7 @@ export function useTasks(userId: string | undefined) {
     }
   }, [userId]);
 
-  const deleteTask = useCallback(async (taskId: string) => {
+  const deleteTask = useCallback(async (taskId: number) => {
     if (!userId) throw new Error('User not authenticated');
 
     setIsLoading(true);
@@ -115,7 +115,7 @@ export function useTasks(userId: string | undefined) {
     }
   }, [userId]);
 
-  const toggleComplete = useCallback(async (taskId: string) => {
+  const toggleComplete = useCallback(async (taskId: number) => {
     if (!userId) throw new Error('User not authenticated');
 
     try {

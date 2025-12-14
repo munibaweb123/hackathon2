@@ -6,9 +6,9 @@ import type { Task } from '@/types';
 interface TaskListProps {
   tasks: Task[];
   isLoading: boolean;
-  onToggleComplete: (taskId: string) => Promise<void>;
+  onToggleComplete: (taskId: number) => Promise<void>;
   onEdit: (task: Task) => void;
-  onDelete: (taskId: string) => Promise<void>;
+  onDelete: (taskId: number) => Promise<void>;
   onAddReminder: (task: Task) => void;
   onManageReminders: (task: Task) => void;
 }

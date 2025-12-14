@@ -7,7 +7,7 @@ export type ReminderStatus = 'pending' | 'sent' | 'cancelled';
 
 export interface Reminder {
   id: string;
-  task_id: string;
+  task_id: number;
   user_id: string;
   reminder_time: string; // ISO date string
   reminder_type: ReminderType;
@@ -43,7 +43,7 @@ export interface UserPreference {
 
 // Task Types
 export interface Task {
-  id: string;
+  id: number;
   title: string;
   description?: string;
   completed: boolean;
@@ -58,7 +58,7 @@ export interface Task {
   recurrence_pattern?: RecurrencePattern;
   recurrence_interval?: number;
   recurrence_end_date?: string;
-  parent_task_id?: string;
+  parent_task_id?: number;
 
   // Include reminders in the response
   reminders?: Reminder[];

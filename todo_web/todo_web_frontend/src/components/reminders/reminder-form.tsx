@@ -19,9 +19,9 @@ import {
 import type { Reminder, ReminderType } from '@/types';
 
 const reminderSchema = z.object({
-  task_id: z.string().min(1, 'Task ID is required'),
+  task_id: z.number().min(1, 'Task ID must be at least 1'),
   reminder_time: z.string().min(1, 'Reminder time is required'),
-  reminder_type: z.enum(['email', 'push', 'sms']).default('push'),
+  reminder_type: z.enum(['email', 'push', 'sms']),
   message: z.string().max(500, 'Message is too long').optional(),
 });
 
@@ -30,9 +30,9 @@ type ReminderFormData = z.infer<typeof reminderSchema>;
 interface CreateReminderFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  taskId: string; // Required when creating a new reminder
+  taskId: number; // Required when creating a new reminder
   reminder?: null;
-  onSubmit: (data: { task_id: string; reminder_time: string; reminder_type?: ReminderType; message?: string }) => Promise<void>;
+  onSubmit: (data: { task_id: number; reminder_time: string; reminder_type?: ReminderType; message?: string }) => Promise<void>;
   isLoading: boolean;
 }
 
@@ -40,58 +40,83 @@ interface EditReminderFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   reminder: Reminder;
-  onSubmit: (data: { reminder_time?: string; reminder_type?: ReminderType; status?: string; message?: string }) => Promise<void>;
+  onSubmit: (data: { reminder_time?: string; reminder_type?: ReminderType; status?: 'pending' | 'sent' | 'cancelled'; message?: string }) => Promise<void>;
   isLoading: boolean;
 }
 
 type ReminderFormProps = CreateReminderFormProps | EditReminderFormProps;
 
-export function ReminderForm({ open, onOpenChange, reminder, onSubmit, isLoading }: ReminderFormProps) {
+export function ReminderForm({ open, onOpenChange, reminder, onSubmit, isLoading, ...rest }: ReminderFormProps) {
+  // Get taskId from rest props when creating (not editing)
+  const taskId = 'taskId' in rest ? rest.taskId : undefined;
   const isEditing = !!reminder;
 
   const {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm<ReminderFormData>({
     resolver: zodResolver(reminderSchema),
     defaultValues: {
-      task_id: '',
+      task_id: taskId && taskId > 0 ? taskId : 1,
       reminder_time: '',
       reminder_type: 'push',
       message: '',
     },
+    mode: 'onSubmit',
   });
+
+  // Debug: Log errors whenever they change
+  useEffect(() => {
+    if (Object.keys(errors).length > 0) {
+      console.log('📛 Current form errors:', JSON.stringify(errors, null, 2));
+    }
+  }, [errors]);
 
   useEffect(() => {
     if (reminder) {
+      // Format the reminder_time for the datetime-local input
+      // The input expects format like "YYYY-MM-DDTHH:mm"
+      let formattedTime = reminder.reminder_time;
+      if (reminder.reminder_time) {
+        // Create a date object and format it for datetime-local input
+        const date = new Date(reminder.reminder_time);
+        // Format as YYYY-MM-DDTHH:mm (without seconds for datetime-local input)
+        formattedTime = date.toISOString().slice(0, 16);
+      }
+
       reset({
         task_id: reminder.task_id,
-        reminder_time: reminder.reminder_time,
+        reminder_time: formattedTime,
         reminder_type: reminder.reminder_type,
         message: reminder.message || '',
       });
     } else {
       reset({
-        task_id: '',
+        task_id: taskId && taskId > 0 ? taskId : 1,
         reminder_time: '',
         reminder_type: 'push',
         message: '',
       });
     }
-  }, [reminder, reset]);
+  }, [reminder, reset, taskId, open]);
 
   const handleFormSubmit = async (data: ReminderFormData) => {
     // Convert the datetime-local string to ISO string format for the backend
-    // The datetime-local input returns format like "YYYY-MM-DDTHH:mm", we need to convert to ISO
+    // Keep the time as entered by the user (local time) by appending timezone offset
     const formatDateTime = (dateTimeStr: string): string => {
       if (!dateTimeStr) return dateTimeStr;
-      // If it's already in ISO format, return as is
       if (dateTimeStr.includes('T') && dateTimeStr.includes(':')) {
-        // Add seconds and 'Z' if needed to make it ISO format
         if (dateTimeStr.length === 16) { // "YYYY-MM-DDTHH:mm" format
-          return new Date(dateTimeStr).toISOString();
+          // Append seconds and local timezone offset to preserve user's intended time
+          const date = new Date(dateTimeStr);
+          const tzOffset = -date.getTimezoneOffset();
+          const sign = tzOffset >= 0 ? '+' : '-';
+          const hours = String(Math.floor(Math.abs(tzOffset) / 60)).padStart(2, '0');
+          const minutes = String(Math.abs(tzOffset) % 60).padStart(2, '0');
+          return `${dateTimeStr}:00${sign}${hours}:${minutes}`;
         }
       }
       return dateTimeStr;
@@ -113,7 +138,7 @@ export function ReminderForm({ open, onOpenChange, reminder, onSubmit, isLoading
         reminder_type: data.reminder_type,
         message: data.message || undefined,
       };
-      await (onSubmit as (data: { task_id: string; reminder_time: string; reminder_type?: ReminderType; message?: string }) => Promise<void>)(submitData);
+      await (onSubmit as (data: { task_id: number; reminder_time: string; reminder_type?: ReminderType; message?: string }) => Promise<void>)(submitData);
     }
     onOpenChange(false);
     reset();
@@ -130,15 +155,17 @@ export function ReminderForm({ open, onOpenChange, reminder, onSubmit, isLoading
               : 'Set up a reminder for your task.'}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit(handleFormSubmit)}>
+        <form onSubmit={handleSubmit(handleFormSubmit, (errors) => console.error('Reminder form validation errors:', errors))}>
           <div className="grid gap-4 py-4">
             {!isEditing && (
               <div className="space-y-2">
                 <Label htmlFor="task_id">Task ID</Label>
                 <Input
                   id="task_id"
+                  type="number"
+                  min="1"
                   placeholder="Enter task ID"
-                  {...register('task_id')}
+                  {...register('task_id', { valueAsNumber: true })}
                   disabled={isLoading}
                 />
                 {errors.task_id && (
@@ -188,6 +215,13 @@ export function ReminderForm({ open, onOpenChange, reminder, onSubmit, isLoading
               )}
             </div>
           </div>
+          {/* Debug: Show all errors */}
+          {Object.keys(errors).length > 0 && (
+            <div className="text-xs text-orange-600 bg-orange-50 p-2 rounded mb-2">
+              <strong>Debug - All errors:</strong>
+              <pre>{JSON.stringify(errors, null, 2)}</pre>
+            </div>
+          )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel

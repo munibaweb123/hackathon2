@@ -23,6 +23,11 @@ def create_db_and_tables() -> None:
     SQLModel.metadata.create_all(engine)
 
 
+def drop_all_tables() -> None:
+    """Drop all database tables. USE WITH CAUTION - deletes all data!"""
+    SQLModel.metadata.drop_all(engine)
+
+
 def get_session() -> Generator[Session, None, None]:
     """Dependency to get database session."""
     with Session(engine) as session:

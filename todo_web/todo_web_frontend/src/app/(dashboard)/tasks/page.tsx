@@ -10,6 +10,7 @@ import { TaskFilters } from '@/components/tasks/task-filters';
 import { ReminderForm } from '@/components/reminders/reminder-form';
 import { useAuth } from '@/hooks/use-auth';
 import { useTasks } from '@/hooks/use-tasks';
+import { apiClient } from '@/lib/api-client';
 import type { Task, CreateTaskInput, UpdateTaskInput, Reminder } from '@/types';
 
 export default function TasksPage() {
@@ -22,6 +23,7 @@ export default function TasksPage() {
     completedCount,
     pendingCount,
     totalCount,
+    fetchTasks,
     createTask,
     updateTask,
     deleteTask,
@@ -61,7 +63,7 @@ export default function TasksPage() {
     }
   };
 
-  const handleDeleteTask = async (taskId: string) => {
+  const handleDeleteTask = async (taskId: number) => {
     try {
       await deleteTask(taskId);
       toast.success('Task deleted successfully');
@@ -70,7 +72,7 @@ export default function TasksPage() {
     }
   };
 
-  const handleToggleComplete = async (taskId: string) => {
+  const handleToggleComplete = async (taskId: number) => {
     try {
       await toggleComplete(taskId);
     } catch (err) {
@@ -93,30 +95,20 @@ export default function TasksPage() {
     toast.info(`Managing reminders for task: ${task.title}`);
   };
 
-  const handleCreateReminder = async (data: { task_id: string; reminder_time: string; reminder_type?: 'email' | 'push' | 'sms'; message?: string }) => {
+  const handleCreateReminder = async (data: { task_id: number; reminder_time: string; reminder_type?: 'email' | 'push' | 'sms'; message?: string }) => {
     if (!user?.id) {
       toast.error('User not authenticated');
       return;
     }
 
     try {
-      const newReminder = await apiClient.createReminder(user.id, data);
+      await apiClient.createReminder(user.id, data);
       toast.success('Reminder created successfully');
       setShowReminderForm(false);
       setSelectedTaskForReminder(null);
 
-      // Update the task in the list to include the new reminder
-      setTasks(prevTasks =>
-        prevTasks.map(task => {
-          if (task.id === data.task_id) {
-            return {
-              ...task,
-              reminders: task.reminders ? [...task.reminders, newReminder] : [newReminder]
-            };
-          }
-          return task;
-        })
-      );
+      // Refetch tasks to update the list with the new reminder
+      fetchTasks();
     } catch (err) {
       console.error('Failed to create reminder:', err);
       toast.error('Failed to create reminder');
@@ -221,7 +213,7 @@ export default function TasksPage() {
       <ReminderForm
         open={showReminderForm}
         onOpenChange={setShowReminderForm}
-        taskId={selectedTaskForReminder?.id || ''}
+        taskId={selectedTaskForReminder?.id || 0}
         onSubmit={handleCreateReminder}
         isLoading={false}
       />

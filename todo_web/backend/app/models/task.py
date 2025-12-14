@@ -4,7 +4,6 @@ from datetime import datetime
 from typing import Optional, List
 from sqlmodel import SQLModel, Field, Relationship
 from enum import Enum
-import uuid
 
 
 class Priority(str, Enum):
@@ -31,7 +30,7 @@ class Task(SQLModel, table=True):
 
     __tablename__ = "tasks"
 
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
+    id: Optional[int] = Field(default=None, primary_key=True)
     title: str = Field(min_length=1, max_length=255, index=True)
     description: Optional[str] = Field(default=None, max_length=1000)
     completed: bool = Field(default=False)
@@ -44,7 +43,7 @@ class Task(SQLModel, table=True):
     recurrence_pattern: Optional[RecurrencePattern] = Field(default=None)
     recurrence_interval: Optional[int] = Field(default=1)  # How often to repeat (e.g., every 2 weeks)
     recurrence_end_date: Optional[datetime] = None  # When to stop recurring
-    parent_task_id: Optional[str] = Field(default=None, foreign_key="tasks.id")  # For recurring instances
+    parent_task_id: Optional[int] = Field(default=None, foreign_key="tasks.id")  # For recurring instances
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -55,7 +54,7 @@ class Task(SQLModel, table=True):
     class Config:
         json_schema_extra = {
             "example": {
-                "id": "task-123",
+                "id": 1,
                 "title": "Buy groceries",
                 "description": "Milk, eggs, bread",
                 "completed": False,

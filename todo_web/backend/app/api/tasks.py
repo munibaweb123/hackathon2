@@ -193,7 +193,7 @@ async def create_task(
 @router.get("/{user_id}/tasks/{task_id}", response_model=TaskResponse)
 async def get_task(
     user_id: str,
-    task_id: str,
+    task_id: int,
     current_user: AuthenticatedUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> TaskResponse:
@@ -217,7 +217,7 @@ async def get_task(
 @router.put("/{user_id}/tasks/{task_id}", response_model=TaskResponse)
 async def update_task(
     user_id: str,
-    task_id: str,
+    task_id: int,
     task_data: TaskUpdate,
     current_user: AuthenticatedUser = Depends(get_current_user),
     session: Session = Depends(get_session),
@@ -239,6 +239,20 @@ async def update_task(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Task not found",
         )
+
+    # Validate recurrence fields if task is being updated to recurring
+    # If is_recurring is being set to True (and it wasn't already True), validate required recurrence fields
+    if task_data.is_recurring is True and task.is_recurring is False:
+        if task_data.recurrence_pattern is None:  # Field is being updated to recurring but no pattern provided
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="recurrence_pattern is required for recurring tasks"
+            )
+        if task_data.recurrence_interval is not None and task_data.recurrence_interval < 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="recurrence_interval must be at least 1"
+            )
 
     # Check if we're updating recurrence fields for a recurring task
     is_recurring_updated = task_data.is_recurring is not None
@@ -309,7 +323,7 @@ async def update_task(
 @router.delete("/{user_id}/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_task(
     user_id: str,
-    task_id: str,
+    task_id: int,
     current_user: AuthenticatedUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> None:
@@ -342,7 +356,7 @@ async def delete_task(
 @router.patch("/{user_id}/tasks/{task_id}/complete", response_model=TaskResponse)
 async def toggle_task_completion(
     user_id: str,
-    task_id: str,
+    task_id: int,
     current_user: AuthenticatedUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> TaskResponse:

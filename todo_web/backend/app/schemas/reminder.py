@@ -1,8 +1,8 @@
 """Reminder schemas for API requests/responses."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 from enum import Enum
 
 
@@ -23,7 +23,7 @@ class ReminderStatus(str, Enum):
 class ReminderCreate(BaseModel):
     """Schema for creating a new reminder."""
 
-    task_id: str
+    task_id: int
     reminder_time: datetime
     reminder_type: ReminderType = ReminderType.PUSH
     message: Optional[str] = Field(None, max_length=500)
@@ -31,7 +31,7 @@ class ReminderCreate(BaseModel):
     class Config:
         json_schema_extra = {
             "example": {
-                "task_id": "task-123",
+                "task_id": 1,
                 "reminder_time": "2024-12-15T17:00:00Z",
                 "reminder_type": "push",
                 "message": "Time to complete your task!"
@@ -60,7 +60,7 @@ class ReminderResponse(BaseModel):
     """Schema for reminder response."""
 
     id: str
-    task_id: str
+    task_id: int
     user_id: str
     reminder_time: datetime
     reminder_type: ReminderType
@@ -68,6 +68,13 @@ class ReminderResponse(BaseModel):
     message: Optional[str] = None
     created_at: datetime
     updated_at: datetime
+
+    @field_serializer('reminder_time', 'created_at', 'updated_at')
+    def serialize_datetime(self, v: datetime) -> str:
+        """Serialize datetime to ISO format with Z suffix for UTC."""
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
 
     class Config:
         from_attributes = True

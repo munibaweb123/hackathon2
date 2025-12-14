@@ -2,8 +2,10 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/layout/header';
 import { Sidebar } from '@/components/layout/sidebar';
+import { Footer } from '@/components/layout/footer';
 import { useAuth } from '@/hooks/use-auth';
 
 export default function DashboardLayout({
@@ -22,8 +24,19 @@ export default function DashboardLayout({
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex flex-col items-center gap-4"
+        >
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+            className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full"
+          />
+          <p className="text-muted-foreground text-sm">Loading...</p>
+        </motion.div>
       </div>
     );
   }
@@ -33,11 +46,24 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row">
-      <Sidebar />
-      <div className="flex-1 flex flex-col">
-        <Header />
-        <main className="flex-1 container py-6">{children}</main>
+    <div className="min-h-screen flex flex-col bg-background">
+      <div className="flex flex-1">
+        <Sidebar />
+        <div className="flex-1 flex flex-col min-w-0">
+          <Header />
+          <AnimatePresence mode="wait">
+            <motion.main
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="flex-1 container px-4 sm:px-6 py-6 max-w-6xl"
+            >
+              {children}
+            </motion.main>
+          </AnimatePresence>
+          <Footer />
+        </div>
       </div>
     </div>
   );

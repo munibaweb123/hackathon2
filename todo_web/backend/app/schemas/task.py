@@ -1,8 +1,8 @@
 """Task schemas for API requests/responses."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 from enum import Enum
 
 
@@ -89,7 +89,7 @@ from .reminder import ReminderResponse
 class TaskResponse(BaseModel):
     """Schema for task response."""
 
-    id: str
+    id: int
     title: str
     description: Optional[str] = None
     completed: bool
@@ -102,13 +102,22 @@ class TaskResponse(BaseModel):
     recurrence_pattern: Optional[RecurrencePattern] = None
     recurrence_interval: Optional[int] = None
     recurrence_end_date: Optional[datetime] = None
-    parent_task_id: Optional[str] = None
+    parent_task_id: Optional[int] = None
 
     # Include reminders in the response
     reminders: Optional[List[ReminderResponse]] = []
 
     created_at: datetime
     updated_at: datetime
+
+    @field_serializer('due_date', 'recurrence_end_date', 'created_at', 'updated_at')
+    def serialize_datetime(self, v: Optional[datetime]) -> Optional[str]:
+        """Serialize datetime to ISO format with timezone info."""
+        if v is None:
+            return None
+        if v.tzinfo is None:
+            v = v.replace(tzinfo=timezone.utc)
+        return v.isoformat()
 
     class Config:
         from_attributes = True

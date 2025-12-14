@@ -23,7 +23,7 @@ export default function TaskDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
-  const taskId = params.id as string;
+  const taskId = parseInt(params.id as string, 10);
 
   const [task, setTask] = useState<Task | null>(null);
   const [isLoading, setIsLoading] = useState(true);

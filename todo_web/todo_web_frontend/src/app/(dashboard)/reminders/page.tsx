@@ -38,7 +38,7 @@ export default function RemindersPage() {
     fetchReminders();
   }, [user?.id]);
 
-  const handleCreateReminder = async (data: { task_id: string; reminder_time: string; reminder_type?: 'email' | 'push' | 'sms'; message?: string }) => {
+  const handleCreateReminder = async (data: { task_id: number; reminder_time: string; reminder_type?: 'email' | 'push' | 'sms'; message?: string }) => {
     if (!user?.id) {
       toast.error('User not authenticated');
       return;
@@ -261,19 +261,21 @@ export default function RemindersPage() {
       <ReminderForm
         open={showReminderForm}
         onOpenChange={setShowReminderForm}
-        taskId="" // Will be set when a task is selected
+        taskId={0} // Will be set when a task is selected
         onSubmit={handleCreateReminder}
         isLoading={isSubmitting}
       />
 
       {/* Edit Reminder Form */}
-      <ReminderForm
-        open={!!editingReminder}
-        onOpenChange={(open) => !open && setEditingReminder(null)}
-        reminder={editingReminder || undefined}
-        onSubmit={handleUpdateReminder}
-        isLoading={isSubmitting}
-      />
+      {editingReminder && (
+        <ReminderForm
+          open={!!editingReminder}
+          onOpenChange={(open) => !open && setEditingReminder(null)}
+          reminder={editingReminder}
+          onSubmit={handleUpdateReminder}
+          isLoading={isSubmitting}
+        />
+      )}
     </div>
   );
 }
