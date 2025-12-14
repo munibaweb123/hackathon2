@@ -129,7 +129,7 @@ async def create_reminder(
 @router.get("/{user_id}/reminders/{reminder_id}", response_model=ReminderResponse)
 async def get_reminder(
     user_id: str,
-    reminder_id: str,
+    reminder_id: int,
     current_user: AuthenticatedUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> ReminderResponse:
@@ -153,7 +153,7 @@ async def get_reminder(
 @router.put("/{user_id}/reminders/{reminder_id}", response_model=ReminderResponse)
 async def update_reminder(
     user_id: str,
-    reminder_id: str,
+    reminder_id: int,
     reminder_data: ReminderUpdate,
     current_user: AuthenticatedUser = Depends(get_current_user),
     session: Session = Depends(get_session),
@@ -208,7 +208,7 @@ async def update_reminder(
 @router.delete("/{user_id}/reminders/{reminder_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_reminder(
     user_id: str,
-    reminder_id: str,
+    reminder_id: int,
     current_user: AuthenticatedUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> None:
@@ -233,7 +233,7 @@ async def delete_reminder(
 @router.patch("/{user_id}/reminders/{reminder_id}/cancel", response_model=ReminderResponse)
 async def cancel_reminder(
     user_id: str,
-    reminder_id: str,
+    reminder_id: int,
     current_user: AuthenticatedUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> ReminderResponse:

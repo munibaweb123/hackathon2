@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta
 from typing import List, Optional
 from app.schemas.task import RecurrencePattern
+import pytz
 
 
 def calculate_next_occurrence(
@@ -24,7 +25,19 @@ def calculate_next_occurrence(
         datetime: The next occurrence date
     """
     if current_date is None:
-        current_date = datetime.utcnow()
+        current_date = datetime.now(start_date.tzinfo if hasattr(start_date, 'tzinfo') and start_date.tzinfo else None)
+
+    # Ensure both datetimes are of the same type (timezone-aware or naive) for comparison
+    if hasattr(start_date, 'tzinfo') and start_date.tzinfo is not None:
+        # start_date is timezone-aware, make current_date timezone-aware too
+        if current_date.tzinfo is None:
+            # If current_date is naive but start_date is aware, assume UTC for current_date
+            import pytz
+            current_date = pytz.UTC.localize(current_date)
+    elif hasattr(current_date, 'tzinfo') and current_date.tzinfo is not None:
+        # current_date is timezone-aware, but start_date is naive
+        # Convert current_date to naive to match start_date
+        current_date = current_date.replace(tzinfo=None)
 
     # If the start date is in the future, use it as the next occurrence
     if start_date > current_date:
@@ -87,10 +100,19 @@ def generate_recurring_tasks(
     Returns:
         List[dict]: List of task instances with updated dates
     """
-    if not original_task_data.get('is_recurring') or not original_task_data.get('recurrence_pattern'):
+    if not original_task_data.get('is_recurring'):
         return []
 
-    pattern = RecurrencePattern(original_task_data['recurrence_pattern'])
+    recurrence_pattern_str = original_task_data.get('recurrence_pattern')
+    if not recurrence_pattern_str:
+        return []
+
+    try:
+        pattern = RecurrencePattern(recurrence_pattern_str)
+    except ValueError:
+        # If the recurrence pattern is invalid, return empty list to prevent server crash
+        return []
+
     interval = original_task_data.get('recurrence_interval', 1)
 
     tasks = []
