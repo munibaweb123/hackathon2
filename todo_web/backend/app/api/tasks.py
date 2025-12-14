@@ -243,11 +243,27 @@ async def update_task(
     # Validate recurrence fields if task is being updated to recurring
     # If is_recurring is being set to True (and it wasn't already True), validate required recurrence fields
     if task_data.is_recurring is True and task.is_recurring is False:
-        if task_data.recurrence_pattern is None:  # Field is being updated to recurring but no pattern provided
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="recurrence_pattern is required for recurring tasks"
-            )
+        # Check if recurrence_pattern is being explicitly set to None (which would be invalid)
+        # Use model_fields_set to check if the field was provided in the request
+        if hasattr(task_data, 'model_fields_set'):
+            if 'recurrence_pattern' in task_data.model_fields_set and task_data.recurrence_pattern is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="recurrence_pattern is required for recurring tasks"
+                )
+            # If recurrence_pattern is not being updated but the existing task doesn't have one, it's an error
+            elif 'recurrence_pattern' not in task_data.model_fields_set and task.recurrence_pattern is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="recurrence_pattern is required for recurring tasks"
+                )
+        else:
+            # Fallback for older Pydantic versions
+            if task_data.recurrence_pattern is None:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="recurrence_pattern is required for recurring tasks"
+                )
         if task_data.recurrence_interval is not None and task_data.recurrence_interval < 1:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -264,7 +280,13 @@ async def update_task(
         if key == "priority" and value is not None:
             setattr(task, key, Priority(value.value))
         elif key == "recurrence_pattern" and value is not None:
-            setattr(task, key, RecurrencePattern(value))
+            try:
+                setattr(task, key, RecurrencePattern(value))
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid recurrence_pattern: {value}. Must be one of: daily, weekly, biweekly, monthly, yearly, custom"
+                )
         else:
             setattr(task, key, value)
 
@@ -279,7 +301,7 @@ async def update_task(
             session.delete(instance)
 
         # Regenerate recurring instances if the task is still recurring
-        if task.is_recurring and task.due_date:
+        if task.is_recurring and task.due_date and task.recurrence_pattern:
             task_dict = {
                 'title': task.title,
                 'description': task.description,
