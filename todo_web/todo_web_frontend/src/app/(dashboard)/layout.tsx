@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/layout/header';
@@ -13,15 +13,28 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, refetch, user, error } = useAuth();
   const router = useRouter();
 
+  // Debug logging
+  useEffect(() => {
+    console.log('[DashboardLayout] Auth state:', {
+      isAuthenticated,
+      isLoading,
+      user: user ? { id: user.id, email: user.email } : null,
+      error: error?.message || null,
+    });
+  }, [isAuthenticated, isLoading, user, error]);
+
+  // Redirect to login if not authenticated
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
+      console.log('[DashboardLayout] Redirecting to login...');
       router.push('/login');
     }
   }, [isAuthenticated, isLoading, router]);
 
+  // Show loading state while checking auth
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -41,6 +54,7 @@ export default function DashboardLayout({
     );
   }
 
+  // If user is not authenticated after loading, return null (will redirect via useEffect)
   if (!isAuthenticated) {
     return null;
   }

@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PreferencesForm } from '@/components/preferences/preferences-form';
 import { useAuth } from '@/hooks/use-auth';
-import { apiClient } from '@/lib/api-client';
+import { jwtApiClient } from '@/services/auth/api-client';
 import type { UserPreference } from '@/types';
 
 export default function PreferencesPage() {
@@ -15,12 +15,10 @@ export default function PreferencesPage() {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (!user?.id) return;
-
     const fetchPreferences = async () => {
       try {
         setIsLoading(true);
-        const userPrefs = await apiClient.getUserPreferences(user.id);
+        const userPrefs = await jwtApiClient.getUserPreferences();
         setPreferences(userPrefs);
       } catch (error) {
         console.error('Failed to fetch preferences:', error);
@@ -31,17 +29,12 @@ export default function PreferencesPage() {
     };
 
     fetchPreferences();
-  }, [user?.id]);
+  }, []);
 
   const handleSavePreferences = async (data: Partial<UserPreference>) => {
-    if (!user?.id) {
-      toast.error('User not authenticated');
-      return;
-    }
-
     setIsSaving(true);
     try {
-      const updatedPreferences = await apiClient.updateUserPreferences(user.id, data);
+      const updatedPreferences = await jwtApiClient.updateUserPreferences(data);
       setPreferences(updatedPreferences);
       toast.success('Preferences updated successfully');
     } catch (error) {

@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { TaskForm } from '@/components/tasks/task-form';
-import { apiClient } from '@/lib/api-client';
+import { jwtApiClient } from '@/services/auth/api-client';
 import { useAuth } from '@/hooks/use-auth';
 import type { Task, UpdateTaskInput } from '@/types';
 
@@ -32,11 +32,9 @@ export default function TaskDetailPage() {
 
   useEffect(() => {
     async function fetchTask() {
-      if (!user?.id) return;
-
       setIsLoading(true);
       try {
-        const data = await apiClient.getTask(user.id, taskId);
+        const data = await jwtApiClient.getTask(taskId);
         setTask(data);
       } catch (err) {
         toast.error('Failed to load task');
@@ -47,13 +45,13 @@ export default function TaskDetailPage() {
     }
 
     fetchTask();
-  }, [user?.id, taskId, router]);
+  }, [taskId, router]);
 
   const handleToggleComplete = async () => {
-    if (!user?.id || !task) return;
+    if (!task) return;
 
     try {
-      const updated = await apiClient.toggleTaskComplete(user.id, task.id);
+      const updated = await jwtApiClient.toggleTaskComplete(task.id);
       setTask(updated);
       toast.success(updated.completed ? 'Task completed!' : 'Task reopened');
     } catch (err) {
@@ -62,11 +60,11 @@ export default function TaskDetailPage() {
   };
 
   const handleUpdate = async (data: UpdateTaskInput) => {
-    if (!user?.id || !task) return;
+    if (!task) return;
 
     setIsUpdating(true);
     try {
-      const updated = await apiClient.updateTask(user.id, task.id, data);
+      const updated = await jwtApiClient.updateTask(task.id, data);
       setTask(updated);
       setIsEditing(false);
       toast.success('Task updated');
@@ -78,12 +76,12 @@ export default function TaskDetailPage() {
   };
 
   const handleDelete = async () => {
-    if (!user?.id || !task) return;
+    if (!task) return;
 
     if (!confirm('Are you sure you want to delete this task?')) return;
 
     try {
-      await apiClient.deleteTask(user.id, task.id);
+      await jwtApiClient.deleteTask(task.id);
       toast.success('Task deleted');
       router.push('/tasks');
     } catch (err) {

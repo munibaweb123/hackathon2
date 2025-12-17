@@ -7,30 +7,27 @@ from sqlmodel import Session, select
 import json
 
 from ..core.database import get_session
-from ..core.auth import get_current_user, verify_user_access, AuthenticatedUser
+from ..core.auth import get_current_user, AuthenticatedUser
 from ..models.preference import UserPreference
 from ..schemas.preference import UserPreferenceCreate, UserPreferenceUpdate, UserPreferenceResponse
 
 router = APIRouter()
 
 
-@router.get("/{user_id}/preferences", response_model=UserPreferenceResponse)
+@router.get("/preferences", response_model=UserPreferenceResponse)
 async def get_user_preferences(
-    user_id: str,
     current_user: AuthenticatedUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> UserPreferenceResponse:
-    """Get user preferences. Creates default preferences if they don't exist."""
-    # Verify user access
-    verify_user_access(user_id, current_user)
+    """Get user preferences for the authenticated user. Creates default preferences if they don't exist."""
 
     # Get existing preferences or create default
-    statement = select(UserPreference).where(UserPreference.user_id == user_id)
+    statement = select(UserPreference).where(UserPreference.user_id == current_user.id)
     user_pref = session.exec(statement).first()
 
     if not user_pref:
         # Create default preferences for the user
-        user_pref = UserPreference(user_id=user_id)
+        user_pref = UserPreference(user_id=current_user.id)
         session.add(user_pref)
         session.commit()
         session.refresh(user_pref)
@@ -38,19 +35,16 @@ async def get_user_preferences(
     return UserPreferenceResponse.model_validate(user_pref)
 
 
-@router.post("/{user_id}/preferences", response_model=UserPreferenceResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/preferences", response_model=UserPreferenceResponse, status_code=status.HTTP_201_CREATED)
 async def create_user_preferences(
-    user_id: str,
     preferences_data: UserPreferenceCreate,
     current_user: AuthenticatedUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> UserPreferenceResponse:
-    """Create user preferences. If preferences already exist, update them instead."""
-    # Verify user access
-    verify_user_access(user_id, current_user)
+    """Create user preferences for the authenticated user. If preferences already exist, update them instead."""
 
     # Check if preferences already exist
-    statement = select(UserPreference).where(UserPreference.user_id == user_id)
+    statement = select(UserPreference).where(UserPreference.user_id == current_user.id)
     existing_pref = session.exec(statement).first()
 
     if existing_pref:
@@ -80,7 +74,7 @@ async def create_user_preferences(
 
     # Create preferences
     user_pref = UserPreference(
-        user_id=user_id,
+        user_id=current_user.id,
         theme=preferences_data.theme,
         language=preferences_data.language,
         task_notifications=preferences_data.task_notifications,
@@ -103,24 +97,21 @@ async def create_user_preferences(
     return UserPreferenceResponse.model_validate(user_pref)
 
 
-@router.put("/{user_id}/preferences", response_model=UserPreferenceResponse)
+@router.put("/preferences", response_model=UserPreferenceResponse)
 async def update_user_preferences(
-    user_id: str,
     preferences_data: UserPreferenceUpdate,
     current_user: AuthenticatedUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> UserPreferenceResponse:
-    """Update user preferences. Creates default preferences if they don't exist."""
-    # Verify user access
-    verify_user_access(user_id, current_user)
+    """Update user preferences for the authenticated user. Creates default preferences if they don't exist."""
 
     # Get existing preferences or create default
-    statement = select(UserPreference).where(UserPreference.user_id == user_id)
+    statement = select(UserPreference).where(UserPreference.user_id == current_user.id)
     user_pref = session.exec(statement).first()
 
     if not user_pref:
         # Create default preferences for the user
-        user_pref = UserPreference(user_id=user_id)
+        user_pref = UserPreference(user_id=current_user.id)
         session.add(user_pref)
         session.commit()
         session.refresh(user_pref)
@@ -156,19 +147,16 @@ async def update_user_preferences(
     return UserPreferenceResponse.model_validate(user_pref)
 
 
-@router.patch("/{user_id}/preferences", response_model=UserPreferenceResponse)
+@router.patch("/preferences", response_model=UserPreferenceResponse)
 async def patch_user_preferences(
-    user_id: str,
     preferences_data: UserPreferenceUpdate,
     current_user: AuthenticatedUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> UserPreferenceResponse:
-    """Partially update user preferences."""
-    # Verify user access
-    verify_user_access(user_id, current_user)
+    """Partially update user preferences for the authenticated user."""
 
     # Get existing preferences
-    statement = select(UserPreference).where(UserPreference.user_id == user_id)
+    statement = select(UserPreference).where(UserPreference.user_id == current_user.id)
     user_pref = session.exec(statement).first()
 
     if not user_pref:

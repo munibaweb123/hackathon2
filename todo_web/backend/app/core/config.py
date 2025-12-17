@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     # Application
     APP_NAME: str = "Todo Web API"
     APP_VERSION: str = "1.0.0"
-    DEBUG: bool = False
+    DEBUG: bool = True
 
     # Database - Neon Serverless PostgreSQL
     DATABASE_URL: str = "postgresql://user:password@host/dbname"

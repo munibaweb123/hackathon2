@@ -1,24 +1,24 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession, signIn, signUp, signOut } from '@/lib/auth-client';
-import { apiClient } from '@/lib/api-client';
+import { useSession, signIn, signUp, signOut, getSession } from '@/lib/auth-client';
+import { clearCachedToken } from '@/services/auth/api-client';
 import type { User, LoginInput, RegisterInput } from '@/types';
 
 export function useAuth() {
   const router = useRouter();
-  const { data: session, isPending, error } = useSession();
+  const { data: session, isPending, error, refetch } = useSession();
   const [isLoading, setIsLoading] = useState(false);
 
-  // Sync token with API client when session changes
+  // Debug logging for session state
   useEffect(() => {
-    if (session?.session?.token) {
-      apiClient.setToken(session.session.token);
-    } else {
-      apiClient.loadToken();
-    }
-  }, [session]);
+    console.log('[useAuth] Session state:', {
+      session: session ? { user: session.user?.email, hasSession: !!session.session } : null,
+      isPending,
+      error: error?.message || null,
+    });
+  }, [session, isPending, error]);
 
   const login = useCallback(async (input: LoginInput) => {
     setIsLoading(true);
@@ -32,6 +32,16 @@ export function useAuth() {
         throw new Error(result.error.message || 'Login failed');
       }
 
+      // Wait for session to be available before redirecting
+      // This ensures cookies are properly set
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Refetch session to ensure it's updated
+      await refetch();
+
+      // Wait a bit more to ensure session is fully established
+      await new Promise(resolve => setTimeout(resolve, 200));
+
       router.push('/tasks');
       router.refresh();
       return result;
@@ -40,7 +50,7 @@ export function useAuth() {
     } finally {
       setIsLoading(false);
     }
-  }, [router]);
+  }, [router, refetch]);
 
   const register = useCallback(async (input: RegisterInput) => {
     setIsLoading(true);
@@ -55,6 +65,15 @@ export function useAuth() {
         throw new Error(result.error.message || 'Registration failed');
       }
 
+      // Wait for session to be available before redirecting
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Refetch session to ensure it's updated
+      await refetch();
+
+      // Wait a bit more to ensure session is fully established
+      await new Promise(resolve => setTimeout(resolve, 200));
+
       router.push('/tasks');
       router.refresh();
       return result;
@@ -63,11 +82,13 @@ export function useAuth() {
     } finally {
       setIsLoading(false);
     }
-  }, [router]);
+  }, [router, refetch]);
 
   const logout = useCallback(async () => {
     setIsLoading(true);
     try {
+      // Clear cached JWT token
+      clearCachedToken();
       await signOut();
       router.push('/login');
       router.refresh();
@@ -92,5 +113,6 @@ export function useAuth() {
     login,
     register,
     logout,
+    refetch,
   };
 }

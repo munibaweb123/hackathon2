@@ -37,6 +37,7 @@ dependencies = [
     "python-multipart>=0.0.12",
     # Date handling
     "python-dateutil>=2.9.0",
+    "pyjwt>=2.10.1",
 ]
 
 [dependency-groups]

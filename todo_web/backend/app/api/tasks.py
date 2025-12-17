@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlmodel import Session, select, col
 
 from ..core.database import get_session
-from ..core.auth import get_current_user, verify_user_access, AuthenticatedUser
+from ..core.auth import get_current_user, AuthenticatedUser, verify_user_access
 from ..models.task import Task, Priority, RecurrencePattern
 from ..schemas.task import TaskCreate, TaskUpdate, TaskResponse, TaskListResponse
 from ..utils.recurrence import generate_recurring_tasks
@@ -14,20 +14,19 @@ from ..utils.recurrence import generate_recurring_tasks
 router = APIRouter()
 
 
-@router.get("/{user_id}/tasks", response_model=TaskListResponse)
+@router.get("/tasks", response_model=TaskListResponse)
 async def list_tasks(
-    user_id: str,
     status_filter: Optional[str] = Query(None, alias="status"),
     sort_by: str = Query("created_at", alias="sort"),
     order: str = Query("desc"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     include_recurring: bool = Query(True, description="Include recurring task instances"),
-    current_user: AuthenticatedUser = Depends(get_current_user),
+    current_user: "AuthenticatedUser" = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> TaskListResponse:
     """
-    List all tasks for a user with optional filtering and sorting.
+    List all tasks for the authenticated user with optional filtering and sorting.
 
     - **status**: Filter by 'completed' or 'pending'
     - **sort**: Sort by 'created_at', 'due_date', 'priority', or 'title'
@@ -36,11 +35,8 @@ async def list_tasks(
     - **page_size**: Items per page (default: 50, max: 100)
     - **include_recurring**: Whether to include recurring task instances (default: True)
     """
-    # Verify user access
-    verify_user_access(user_id, current_user)
-
-    # Build query
-    statement = select(Task).where(Task.user_id == user_id)
+    # Build query - use the authenticated user's ID
+    statement = select(Task).where(Task.user_id == current_user.id)
 
     # Don't include parent recurring tasks if we're showing instances separately
     if include_recurring:
@@ -55,7 +51,7 @@ async def list_tasks(
         statement = statement.where(Task.completed == False)
 
     # Get total count before pagination
-    count_statement = select(Task).where(Task.user_id == user_id)
+    count_statement = select(Task).where(Task.user_id == current_user.id)
     if include_recurring:
         count_statement = count_statement.where((Task.is_recurring == False) | (Task.parent_task_id.is_(None)))
     else:
@@ -96,15 +92,14 @@ async def list_tasks(
     )
 
 
-@router.post("/{user_id}/tasks", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/tasks", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
 async def create_task(
-    user_id: str,
     task_data: TaskCreate,
     current_user: AuthenticatedUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> TaskResponse:
     """
-    Create a new task for the user.
+    Create a new task for the authenticated user.
 
     - **title**: Task title (required)
     - **description**: Task description (optional)
@@ -115,8 +110,6 @@ async def create_task(
     - **recurrence_interval**: How often to repeat (e.g., every 2 weeks) (default: 1)
     - **recurrence_end_date**: When to stop recurring (optional)
     """
-    # Verify user access
-    verify_user_access(user_id, current_user)
 
     # Validate recurrence fields if task is recurring
     if task_data.is_recurring:
@@ -137,7 +130,7 @@ async def create_task(
         description=task_data.description,
         priority=Priority(task_data.priority.value),
         due_date=task_data.due_date,
-        user_id=user_id,
+        user_id=current_user.id,  # Use the authenticated user's ID
         is_recurring=task_data.is_recurring,
         recurrence_pattern=task_data.recurrence_pattern,
         recurrence_interval=task_data.recurrence_interval,
@@ -190,19 +183,15 @@ async def create_task(
     return TaskResponse.model_validate(task)
 
 
-@router.get("/{user_id}/tasks/{task_id}", response_model=TaskResponse)
+@router.get("/tasks/{task_id}", response_model=TaskResponse)
 async def get_task(
-    user_id: str,
     task_id: int,
     current_user: AuthenticatedUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> TaskResponse:
     """Get a specific task by ID."""
-    # Verify user access
-    verify_user_access(user_id, current_user)
-
-    # Get task
-    statement = select(Task).where(Task.id == task_id, Task.user_id == user_id)
+    # Get task - verify it belongs to the authenticated user
+    statement = select(Task).where(Task.id == task_id, Task.user_id == current_user.id)
     task = session.exec(statement).first()
 
     if not task:
@@ -214,9 +203,8 @@ async def get_task(
     return TaskResponse.model_validate(task)
 
 
-@router.put("/{user_id}/tasks/{task_id}", response_model=TaskResponse)
+@router.put("/tasks/{task_id}", response_model=TaskResponse)
 async def update_task(
-    user_id: str,
     task_id: int,
     task_data: TaskUpdate,
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -227,11 +215,9 @@ async def update_task(
 
     Only provided fields will be updated.
     """
-    # Verify user access
-    verify_user_access(user_id, current_user)
 
     # Get task
-    statement = select(Task).where(Task.id == task_id, Task.user_id == user_id)
+    statement = select(Task).where(Task.id == task_id, Task.user_id == current_user.id)
     task = session.exec(statement).first()
 
     if not task:
@@ -342,19 +328,15 @@ async def update_task(
     return TaskResponse.model_validate(task)
 
 
-@router.delete("/{user_id}/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_task(
-    user_id: str,
     task_id: int,
     current_user: AuthenticatedUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> None:
     """Delete a task."""
-    # Verify user access
-    verify_user_access(user_id, current_user)
-
-    # Get task
-    statement = select(Task).where(Task.id == task_id, Task.user_id == user_id)
+    # Get task - verify it belongs to the authenticated user
+    statement = select(Task).where(Task.id == task_id, Task.user_id == current_user.id)
     task = session.exec(statement).first()
 
     if not task:
@@ -375,19 +357,15 @@ async def delete_task(
     session.commit()
 
 
-@router.patch("/{user_id}/tasks/{task_id}/complete", response_model=TaskResponse)
+@router.patch("/tasks/{task_id}/complete", response_model=TaskResponse)
 async def toggle_task_completion(
-    user_id: str,
     task_id: int,
     current_user: AuthenticatedUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> TaskResponse:
     """Toggle task completion status."""
-    # Verify user access
-    verify_user_access(user_id, current_user)
-
-    # Get task
-    statement = select(Task).where(Task.id == task_id, Task.user_id == user_id)
+    # Get task - verify it belongs to the authenticated user
+    statement = select(Task).where(Task.id == task_id, Task.user_id == current_user.id)
     task = session.exec(statement).first()
 
     if not task:
