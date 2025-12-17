@@ -1,349 +1,270 @@
-"""Authentication service for handling user authentication logic."""
+"""Authentication service for handling Better Auth integration."""
 
 from datetime import datetime, timedelta
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Any
 from sqlmodel import Session, select
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, Request
 import secrets
 import logging
+import httpx
 
 from ..core.security import (
-    hash_password,
-    verify_password,
-    validate_password_strength,
     create_access_token,
     create_refresh_token,
-    generate_verification_token,
-    generate_reset_token
 )
 from ..models.user import User
 from ..schemas.auth import UserRegistrationRequest, UserLoginRequest
 from ..core.config import settings
+from ..core.auth import verify_token as decode_jwt_token
 
 
 logger = logging.getLogger(__name__)
 
 
 class AuthService:
-    """Service class for handling authentication logic."""
+    """Service class for handling Better Auth integration."""
 
     @staticmethod
-    def register_user(user_data: UserRegistrationRequest, db_session: Session) -> Tuple[User, str]:
+    async def register_user(user_data: UserRegistrationRequest, request: Request) -> Tuple[Optional[User], str]:
         """
-        Register a new user.
+        Register a new user through Better Auth.
 
         Args:
             user_data: User registration data
-            db_session: Database session
+            request: FastAPI request object for session validation
 
         Returns:
-            Tuple of (created user, access token)
+            Tuple of (user object if created in backend, access token) or (None, None) if registration fails
         """
-        # Check if user with email already exists
-        existing_user = db_session.exec(
-            select(User).where(User.email == user_data.email)
-        ).first()
+        # In this architecture, Better Auth handles registration
+        # We'll validate with Better Auth and potentially create a local user record
 
-        if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="User with this email already exists"
-            )
+        # Make request to Better Auth to register the user
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                cookies_dict = dict(request.cookies)
 
-        # Check if username already exists (if provided)
-        if user_data.username:
-            existing_username = db_session.exec(
-                select(User).where(User.username == user_data.username)
-            ).first()
-
-            if existing_username:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Username already taken"
+                # Make request to Better Auth registration endpoint
+                response = await client.post(
+                    f"{settings.BETTER_AUTH_URL}/api/auth/sign-up/email",
+                    json={
+                        "email": user_data.email,
+                        "password": user_data.password,
+                        "name": f"{user_data.first_name or ''} {user_data.last_name or ''}".strip() or user_data.email.split('@')[0]
+                    },
+                    cookies=cookies_dict,
+                    headers={"accept": "application/json", "content-type": "application/json"}
                 )
 
-        # Validate password strength
-        is_valid, message = validate_password_strength(user_data.password)
-        if not is_valid:
+                if response.status_code != 200:
+                    logger.warning(f"Better Auth registration failed: {response.text}")
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Registration failed"
+                    )
+
+                # After successful registration, validate the session
+                session_response = await client.get(
+                    f"{settings.BETTER_AUTH_URL}/api/auth/session",
+                    cookies=cookies_dict,
+                    headers={"accept": "application/json"}
+                )
+
+                if session_response.status_code == 200:
+                    session_data = session_response.json()
+                    if session_data.get("user"):
+                        user_info = session_data["user"]
+
+                        # Create a minimal local user record if needed for backend operations
+                        # This is just to have a local reference; the actual user data comes from Better Auth
+                        local_user = User(
+                            id=user_info.get("id", ""),
+                            email=user_info.get("email", user_data.email),
+                            name=user_info.get("name"),
+                            image=user_info.get("image"),
+                            email_verified=user_info.get("emailVerified"),
+                            created_at=datetime.utcnow(),
+                            updated_at=datetime.utcnow()
+                        )
+
+                        # Create backend token for API access
+                        access_token_data = {
+                            "user_id": user_info.get("id", ""),
+                            "email": user_info.get("email", user_data.email)
+                        }
+                        access_token = create_access_token(
+                            data=access_token_data,
+                            expires_delta=timedelta(hours=1)
+                        )
+
+                        return local_user, access_token
+        except Exception as e:
+            logger.error(f"Better Auth registration error: {e}")
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=message
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Registration failed"
             )
 
-        # Hash the password
-        hashed_password = hash_password(user_data.password)
-
-        # Generate verification token if needed
-        verification_token = generate_verification_token()
-        verification_expires = datetime.utcnow() + timedelta(hours=24)  # 24 hours
-
-        # Create new user
-        new_user = User(
-            email=user_data.email,
-            username=user_data.username,
-            password_hash=hashed_password,
-            first_name=user_data.first_name,
-            last_name=user_data.last_name,
-            is_verified=False,  # User needs to verify email
-            verification_token=verification_token,
-            verification_expires=verification_expires
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Registration failed"
         )
-
-        db_session.add(new_user)
-        db_session.commit()
-        db_session.refresh(new_user)
-
-        # Create access token for the new user
-        access_token_data = {
-            "user_id": new_user.id,
-            "email": new_user.email
-        }
-        access_token = create_access_token(
-            data=access_token_data,
-            expires_delta=timedelta(hours=1)
-        )
-
-        return new_user, access_token
 
     @staticmethod
-    def authenticate_user(login_data: UserLoginRequest, db_session: Session) -> Tuple[Optional[User], Optional[str], Optional[str]]:
+    async def authenticate_user(login_data: UserLoginRequest, request: Request) -> Tuple[Optional[User], Optional[str], Optional[str]]:
         """
-        Authenticate user with email and password.
+        Authenticate user through Better Auth.
 
         Args:
             login_data: User login data
-            db_session: Database session
+            request: FastAPI request object for session validation
 
         Returns:
-            Tuple of (user, access_token, refresh_token) or (None, None, None) if authentication fails
+            Tuple of (user object, access token, refresh token) or (None, None, None) if authentication fails
         """
-        # Find user by email
-        user = db_session.exec(
-            select(User).where(User.email == login_data.email)
-        ).first()
+        # Authenticate with Better Auth
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                cookies_dict = dict(request.cookies)
 
-        if not user or not user.password_hash:
-            # Don't reveal if user exists or not for security
+                # Make request to Better Auth login endpoint
+                response = await client.post(
+                    f"{settings.BETTER_AUTH_URL}/api/auth/sign-in/email",
+                    json={
+                        "email": login_data.email,
+                        "password": login_data.password
+                    },
+                    cookies=cookies_dict,
+                    headers={"accept": "application/json", "content-type": "application/json"}
+                )
+
+                if response.status_code != 200:
+                    logger.info(f"Better Auth login failed: {response.text}")
+                    return None, None, None
+
+                # Validate the session after login
+                session_response = await client.get(
+                    f"{settings.BETTER_AUTH_URL}/api/auth/session",
+                    cookies=cookies_dict,
+                    headers={"accept": "application/json"}
+                )
+
+                if session_response.status_code == 200:
+                    session_data = session_response.json()
+                    if session_data.get("user"):
+                        user_info = session_data["user"]
+
+                        # Create a minimal local user record if needed for backend operations
+                        local_user = User(
+                            id=user_info.get("id", ""),
+                            email=user_info.get("email", login_data.email),
+                            name=user_info.get("name"),
+                            image=user_info.get("image"),
+                            email_verified=user_info.get("emailVerified"),
+                            created_at=datetime.utcnow(),
+                            updated_at=datetime.utcnow()
+                        )
+
+                        # Create backend tokens for API access
+                        token_data = {
+                            "user_id": user_info.get("id", ""),
+                            "email": user_info.get("email", login_data.email)
+                        }
+
+                        access_token = create_access_token(
+                            data=token_data,
+                            expires_delta=timedelta(hours=1)
+                        )
+
+                        refresh_token = create_refresh_token(
+                            data=token_data,
+                            expires_delta=timedelta(days=7)
+                        )
+
+                        return local_user, access_token, refresh_token
+        except Exception as e:
+            logger.error(f"Better Auth authentication error: {e}")
             return None, None, None
 
-        # Verify password
-        if not verify_password(login_data.password, user.password_hash):
-            return None, None, None
-
-        # Check if account is active
-        if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Account is deactivated"
-            )
-
-        # Update last login time
-        user.last_login_at = datetime.utcnow()
-        db_session.add(user)
-        db_session.commit()
-
-        # Create tokens
-        token_data = {
-            "user_id": user.id,
-            "email": user.email
-        }
-
-        access_token = create_access_token(
-            data=token_data,
-            expires_delta=timedelta(hours=1)
-        )
-
-        refresh_token = create_refresh_token(
-            data=token_data,
-            expires_delta=timedelta(days=7)
-        )
-
-        return user, access_token, refresh_token
+        return None, None, None
 
     @staticmethod
-    def create_password_reset_token(email: str, db_session: Session) -> bool:
+    def verify_user_token(token: str) -> Optional[Dict[str, Any]]:
         """
-        Create a password reset token for a user.
+        Verify a user token from Better Auth.
+
+        Args:
+            token: User token to verify
+
+        Returns:
+            User payload if token is valid, None otherwise
+        """
+        payload = decode_jwt_token(token)
+        return payload
+
+    @staticmethod
+    async def create_password_reset_token(email: str, request: Request) -> bool:
+        """
+        Initiate password reset through Better Auth.
 
         Args:
             email: User's email
-            db_session: Database session
+            request: FastAPI request object for session validation
 
         Returns:
-            True if token was created successfully, False otherwise
+            True if reset token creation was initiated successfully
         """
-        user = db_session.exec(
-            select(User).where(User.email == email)
-        ).first()
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                cookies_dict = dict(request.cookies)
 
-        if not user:
-            # For security, don't reveal if email exists
-            return True  # Return True to indicate the request was processed
+                # Make request to Better Auth forgot password endpoint
+                response = await client.post(
+                    f"{settings.BETTER_AUTH_URL}/api/auth/forgot-password",
+                    json={"email": email},
+                    cookies=cookies_dict,
+                    headers={"accept": "application/json", "content-type": "application/json"}
+                )
 
-        # Generate reset token and expiration
-        reset_token = generate_reset_token()
-        reset_expires = datetime.utcnow() + timedelta(hours=1)  # 1 hour
-
-        user.password_reset_token = reset_token
-        user.password_reset_expires = reset_expires
-
-        db_session.add(user)
-        db_session.commit()
-
-        # In a real application, send email with reset link here
-        # send_password_reset_email(user.email, reset_token)
-
-        return True
+                # Return True regardless of whether email exists for security
+                return True
+        except Exception as e:
+            logger.error(f"Better Auth password reset error: {e}")
+            return False
 
     @staticmethod
-    def reset_user_password(token: str, new_password: str, db_session: Session) -> bool:
+    async def reset_user_password(token: str, new_password: str, request: Request) -> bool:
         """
-        Reset user password using a reset token.
+        Reset user password through Better Auth.
 
         Args:
             token: Password reset token
             new_password: New password
-            db_session: Database session
+            request: FastAPI request object for session validation
 
         Returns:
-            True if password was reset successfully, False otherwise
+            True if password was reset successfully
         """
-        # Find user with the reset token
-        user = db_session.exec(
-            select(User).where(User.password_reset_token == token)
-        ).first()
+        # Better Auth typically handles password reset through a flow that involves
+        # sending a reset link to the user's email, so this method may need adjustment
+        # based on Better Auth's specific implementation
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                cookies_dict = dict(request.cookies)
 
-        if not user:
-            return False
-
-        # Check if token has expired
-        if user.password_reset_expires and user.password_reset_expires < datetime.utcnow():
-            return False
-
-        # Validate new password strength
-        is_valid, message = validate_password_strength(new_password)
-        if not is_valid:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=message
-            )
-
-        # Hash the new password
-        hashed_password = hash_password(new_password)
-
-        # Update user password and clear reset token
-        user.password_hash = hashed_password
-        user.password_reset_token = None
-        user.password_reset_expires = None
-
-        db_session.add(user)
-        db_session.commit()
-
-        return True
-
-    @staticmethod
-    def verify_user_token(token: str, db_session: Session) -> Optional[User]:
-        """
-        Verify a user token and return the user if valid.
-
-        Args:
-            token: User token to verify
-            db_session: Database session
-
-        Returns:
-            User object if token is valid, None otherwise
-        """
-        from ..core.auth import verify_token as decode_jwt_token
-
-        payload = decode_jwt_token(token)
-        if not payload:
-            return None
-
-        user_id = payload.get("user_id")
-        if not user_id:
-            return None
-
-        user = db_session.exec(
-            select(User).where(User.id == user_id)
-        ).first()
-
-        return user
-
-    @staticmethod
-    def update_user_profile(user_id: str, profile_data: dict, db_session: Session) -> Optional[User]:
-        """
-        Update user profile information.
-
-        Args:
-            user_id: ID of the user to update
-            profile_data: Profile data to update
-            db_session: Database session
-
-        Returns:
-            Updated user object or None if update failed
-        """
-        user = db_session.exec(
-            select(User).where(User.id == user_id)
-        ).first()
-
-        if not user:
-            return None
-
-        # Check if username is being updated and if it's already taken
-        if profile_data.get('username') and profile_data['username'] != user.username:
-            existing_user = db_session.exec(
-                select(User).where(User.username == profile_data['username'])
-            ).first()
-
-            if existing_user:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Username already taken"
+                # This is a simplified approach - Better Auth's actual implementation
+                # may vary based on their reset password flow
+                response = await client.post(
+                    f"{settings.BETTER_AUTH_URL}/api/auth/reset-password",
+                    json={
+                        "token": token,
+                        "newPassword": new_password
+                    },
+                    cookies=cookies_dict,
+                    headers={"accept": "application/json", "content-type": "application/json"}
                 )
 
-        # Update user fields
-        for field, value in profile_data.items():
-            if hasattr(user, field) and value is not None:
-                setattr(user, field, value)
-
-        # Update the updated_at timestamp
-        user.updated_at = datetime.utcnow()
-
-        db_session.add(user)
-        db_session.commit()
-        db_session.refresh(user)
-
-        return user
-
-    @staticmethod
-    def verify_email_token(token: str, db_session: Session) -> bool:
-        """
-        Verify an email verification token.
-
-        Args:
-            token: Email verification token
-            db_session: Database session
-
-        Returns:
-            True if verification was successful, False otherwise
-        """
-        user = db_session.exec(
-            select(User).where(User.verification_token == token)
-        ).first()
-
-        if not user:
+                return response.status_code == 200
+        except Exception as e:
+            logger.error(f"Better Auth password reset error: {e}")
             return False
-
-        # Check if token has expired
-        if user.verification_expires and user.verification_expires < datetime.utcnow():
-            return False
-
-        # Update user verification status
-        user.is_verified = True
-        user.verification_token = None
-        user.verification_expires = None
-
-        db_session.add(user)
-        db_session.commit()
-
-        return True

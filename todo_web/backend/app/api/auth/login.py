@@ -1,6 +1,6 @@
 """Login endpoint for user authentication."""
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session
@@ -19,7 +19,7 @@ limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
 
 # Apply rate limiting to login endpoints - max 5 attempts per minute per IP
-@router.post("", response_model=UserLoginResponse)
+@router.post("/login", response_model=UserLoginResponse)
 @limiter.limit("5/minute")
 async def login_user(
     request: Request,  # Need to include request for rate limiting
@@ -30,8 +30,8 @@ async def login_user(
     Authenticate user and return access/refresh tokens.
     """
     try:
-        # Use the auth service to authenticate the user
-        user, access_token, refresh_token = AuthService.authenticate_user(login_data, db_session)
+        # Use the auth service to authenticate the user via Better Auth
+        user, access_token, refresh_token = await AuthService.authenticate_user(login_data, request)
 
         if not user:
             # Log failed login attempt
@@ -52,26 +52,41 @@ async def login_user(
         # Log successful login
         log_auth_event(
             event_type="login_success",
-            user_id=user.id,
-            email=user.email,
+            user_id=user.id if user else None,
+            email=user.email if user else login_data.email,
             ip_address=get_remote_address(request),
             user_agent=request.headers.get("user-agent"),
             success=True
         )
 
-        # Prepare the response
-        return UserLoginResponse(
-            success=True,
-            user={
+        # Prepare the response - use data from Better Auth
+        if user:
+            user_data = {
                 "id": user.id,
                 "email": user.email,
-                "username": user.username,
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-                "is_verified": user.is_verified,
-                "created_at": user.created_at.isoformat(),
-                "updated_at": user.updated_at.isoformat(),
-            },
+                "username": None,  # Better Auth doesn't have username in this implementation
+                "first_name": None,  # Extract from name if needed
+                "last_name": None,   # Extract from name if needed
+                "is_verified": user.email_verified is not None,
+                "created_at": user.created_at.isoformat() if user.created_at else datetime.utcnow().isoformat(),
+                "updated_at": user.updated_at.isoformat() if user.updated_at else datetime.utcnow().isoformat(),
+            }
+        else:
+            # Fallback if user object wasn't created locally
+            user_data = {
+                "id": "",
+                "email": login_data.email,
+                "username": None,
+                "first_name": None,
+                "last_name": None,
+                "is_verified": False,
+                "created_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.utcnow().isoformat(),
+            }
+
+        return UserLoginResponse(
+            success=True,
+            user=user_data,
             access_token=access_token,
             refresh_token=refresh_token
         )
@@ -95,8 +110,8 @@ async def login_user(
 @limiter.limit("5/minute")
 async def login_for_access_token(
     request: Request,  # Need to include request for rate limiting
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    db_session: Session = Depends(get_session)
+    form_data: OAuth2PasswordRequestForm = Depends()
+    # Removed db_session dependency as it's not needed with new AuthService
 ):
     """
     OAuth2 compatible login endpoint, gets username and password, returns access and refresh tokens.
@@ -106,7 +121,7 @@ async def login_for_access_token(
         password=form_data.password
     )
 
-    user, access_token, refresh_token = AuthService.authenticate_user(login_data, db_session)
+    user, access_token, refresh_token = await AuthService.authenticate_user(login_data, request)
 
     if not user:
         raise HTTPException(
@@ -115,16 +130,30 @@ async def login_for_access_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    # Prepare the response - use data from Better Auth
+    if user:
+        user_data = {
+            "id": user.id,
+            "email": user.email,
+            "username": None,  # Better Auth doesn't have username in this implementation
+            "first_name": None,  # Extract from name if needed
+            "last_name": None,   # Extract from name if needed
+            "is_verified": user.email_verified is not None,
+        }
+    else:
+        # Fallback if user object wasn't created locally
+        user_data = {
+            "id": "",
+            "email": login_data.email,
+            "username": None,
+            "first_name": None,
+            "last_name": None,
+            "is_verified": False,
+        }
+
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
         "token_type": "bearer",
-        "user": {
-            "id": user.id,
-            "email": user.email,
-            "username": user.username,
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-            "is_verified": user.is_verified,
-        }
+        "user": user_data
     }

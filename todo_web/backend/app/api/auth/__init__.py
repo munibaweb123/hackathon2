@@ -18,3 +18,6 @@ auth_router.include_router(me.router)
 auth_router.include_router(refresh.router)
 auth_router.include_router(forgot_password.router)
 auth_router.include_router(reset_password.router)
+
+# Export the router as 'router' for the main app to import
+router = auth_router

@@ -13,8 +13,9 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { isAuthenticated, isLoading, refetch, user, error } = useAuth();
+  const { isAuthenticated, isLoading, user, error } = useAuth();
   const router = useRouter();
+  const [shouldRedirect, setShouldRedirect] = useState(false);
 
   // Debug logging
   useEffect(() => {
@@ -26,15 +27,24 @@ export default function DashboardLayout({
     });
   }, [isAuthenticated, isLoading, user, error]);
 
-  // Redirect to login if not authenticated
+  // Handle redirect after loading completes
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      console.log('[DashboardLayout] Redirecting to login...');
-      router.push('/login');
+      console.log('[DashboardLayout] Not authenticated after loading, will redirect...');
+      // Add delay before redirecting to avoid race condition
+      const timer = setTimeout(() => {
+        if (!isAuthenticated) {
+          console.log('[DashboardLayout] Redirecting to login...');
+          setShouldRedirect(true);
+          router.push('/login');
+        }
+      }, 2000); // Wait 2 seconds before redirecting
+
+      return () => clearTimeout(timer);
     }
   }, [isAuthenticated, isLoading, router]);
 
-  // Show loading state while checking auth
+  // Show loading state
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -54,8 +64,28 @@ export default function DashboardLayout({
     );
   }
 
-  // If user is not authenticated after loading, return null (will redirect via useEffect)
-  if (!isAuthenticated) {
+  // If not authenticated and should redirect, show loading
+  if (!isAuthenticated && !shouldRedirect) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex flex-col items-center gap-4"
+        >
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+            className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full"
+          />
+          <p className="text-muted-foreground text-sm">Verifying session...</p>
+        </motion.div>
+      </div>
+    );
+  }
+
+  // If redirecting, show nothing
+  if (shouldRedirect) {
     return null;
   }
 

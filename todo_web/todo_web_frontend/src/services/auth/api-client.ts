@@ -20,7 +20,7 @@ async function getToken(): Promise<string | null> {
   }
 
   // Start a new fetch
-  tokenFetchPromise = getJwtToken().then((token) => {
+  tokenFetchPromise = getJwtTokenWithRetry().then((token) => {
     cachedToken = token;
     tokenFetchPromise = null;
     return token;
@@ -31,6 +31,32 @@ async function getToken(): Promise<string | null> {
   });
 
   return tokenFetchPromise;
+}
+
+// Enhanced function to get JWT token with retry logic
+async function getJwtTokenWithRetry(maxRetries: number = 3): Promise<string | null> {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const token = await getJwtToken();
+      if (token) {
+        console.debug(`JWT token retrieved on attempt ${attempt + 1}`);
+        return token;
+      }
+
+      if (attempt < maxRetries - 1) {
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, 300 * (attempt + 1))); // Increasing delay
+      }
+    } catch (error) {
+      console.error(`Attempt ${attempt + 1} to get JWT token failed:`, error);
+      if (attempt >= maxRetries - 1) {
+        throw error;
+      }
+      // Wait before retrying
+      await new Promise(resolve => setTimeout(resolve, 300 * (attempt + 1)));
+    }
+  }
+  return null;
 }
 
 // Function to clear cached token (call this on logout or auth errors)
@@ -86,11 +112,12 @@ class JwtApiClient {
       (error: AxiosError) => {
         if (error.response?.status === 401) {
           // Unauthorized - token invalid or expired
-          // Clear cached token and redirect to login page
+          // Clear cached token and redirect to login
           clearCachedToken();
           if (typeof window !== 'undefined') {
             localStorage.removeItem('jwt_token');
             sessionStorage.removeItem('jwt_token');
+            // Redirect to login page
             window.location.href = '/login';
           }
         } else if (error.response?.status === 403) {

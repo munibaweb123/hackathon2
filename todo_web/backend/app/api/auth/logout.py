@@ -10,7 +10,7 @@ from ...core.auth import get_current_user, AuthenticatedUser
 router = APIRouter()
 
 
-@router.post("")
+@router.post("/logout")
 async def logout_user(
     request: Request,
     current_user: AuthenticatedUser = Depends(get_current_user),

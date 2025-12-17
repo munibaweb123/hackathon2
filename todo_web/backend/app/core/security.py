@@ -75,6 +75,22 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 
+def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """Create a JWT refresh token."""
+    from .config import settings  # Import here to avoid circular imports
+
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        # Default to 7 days if no expiration is provided
+        expire = datetime.utcnow() + timedelta(days=7)
+
+    to_encode.update({"exp": expire.timestamp()})
+    encoded_jwt = jwt.encode(to_encode, settings.BETTER_AUTH_SECRET, algorithm="HS256")
+    return encoded_jwt
+
+
 def verify_token(token: str, secret_key: str) -> Optional[TokenData]:
     """Verify a JWT token and return the token data."""
     try:

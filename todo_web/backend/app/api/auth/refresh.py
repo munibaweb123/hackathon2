@@ -13,7 +13,7 @@ from ...schemas.auth import TokenRefreshRequest, TokenResponse
 router = APIRouter()
 
 
-@router.post("", response_model=TokenResponse)
+@router.post("/refresh", response_model=TokenResponse)
 async def refresh_access_token(
     token_data: TokenRefreshRequest,
     db_session: Session = Depends(get_session)

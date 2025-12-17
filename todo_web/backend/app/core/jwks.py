@@ -21,37 +21,31 @@ async def fetch_jwks():
     global _cached_jwks
     try:
         better_auth_url = settings.BETTER_AUTH_URL.rstrip('/')
-        # Try common JWKS endpoints used by Better Auth and standard locations
-        jwks_urls = [
-            f"{better_auth_url}/api/auth/v1/keys",      # Better Auth format
-            f"{better_auth_url}/api/auth/keys",         # Alternative Better Auth format
-            f"{better_auth_url}/.well-known/jwks.json", # Standard JWKS location
-            f"{better_auth_url}/jwks.json",             # Alternative location
-        ]
+        # Better Auth JWKS endpoint
+        jwks_url = f"{better_auth_url}/api/auth/jwks"
 
-        for jwks_url in jwks_urls:
-            try:
-                logger.debug(f"Trying JWKS endpoint: {jwks_url}")
-                async with httpx.AsyncClient(timeout=10.0) as client:
-                    response = await client.get(jwks_url)
-                    if response.status_code == 200:
-                        jwks = response.json()
-                        _cached_jwks = jwks
-                        logger.info(f"Successfully fetched JWKS from {jwks_url}")
-                        logger.debug(f"JWKS keys: {list(jwks.get('keys', []))}")
-                        return jwks
-                    else:
-                        logger.debug(f"JWKS endpoint {jwks_url} returned status {response.status_code}")
-            except httpx.ConnectError:
-                logger.debug(f"Could not connect to {jwks_url}")
-            except httpx.TimeoutException:
-                logger.debug(f"Timeout when connecting to {jwks_url}")
-            except Exception as e:
-                logger.debug(f"Failed to fetch JWKS from {jwks_url}: {e}")
-                continue
+        logger.info(f"Fetching JWKS from: {jwks_url}")
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(jwks_url)
+            logger.info(f"JWKS response status: {response.status_code}")
 
-        logger.warning("Failed to fetch JWKS from any standard endpoint")
-        logger.info("Note: If Better Auth doesn't expose JWKS, falling back to shared secret verification")
+            if response.status_code == 200:
+                jwks = response.json()
+                _cached_jwks = jwks
+                keys = jwks.get('keys', [])
+                logger.info(f"Successfully fetched JWKS with {len(keys)} keys")
+                for key in keys:
+                    logger.info(f"  - Key: kid={key.get('kid')}, alg={key.get('alg')}, kty={key.get('kty')}")
+                return jwks
+            else:
+                logger.warning(f"JWKS endpoint returned status {response.status_code}: {response.text}")
+                return None
+
+    except httpx.ConnectError as e:
+        logger.error(f"Could not connect to JWKS endpoint: {e}")
+        return None
+    except httpx.TimeoutException:
+        logger.error("Timeout when fetching JWKS")
         return None
     except Exception as e:
         logger.error(f"Error fetching JWKS: {e}")

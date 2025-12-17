@@ -70,7 +70,7 @@ def verify_token(token: str) -> Optional[Dict[str, Any]]:
     except jwt.ExpiredSignatureError:
         logger.warning("JWT token has expired")
         return None
-    except jwt.JWTError as e:
+    except PyJWTError as e:
         logger.warning(f"JWT token verification failed: {str(e)}")
         return None
 
@@ -82,7 +82,7 @@ def is_token_expired(expiration_time: datetime) -> bool:
 
 def decode_jwt_token(token: str) -> Optional[Dict[str, Any]]:
     """
-    Decode and verify a JWT token, supporting various algorithms including EdDSA.
+    Decode and verify a JWT token from Better Auth.
 
     Args:
         token: The JWT token string to decode
@@ -107,9 +107,10 @@ def decode_jwt_token(token: str) -> Optional[Dict[str, Any]]:
         header_json = base64.b64decode(header_part)
         header = json.loads(header_json)
         alg = header.get('alg', 'HS256')
-        kid = header.get('kid')  # Key ID for JWKS lookup
+        kid = header.get('kid')
 
-        logger.debug(f"JWT token algorithm: {alg}, kid: {kid}")
+        logger.info(f"JWT header - algorithm: {alg}, kid: {kid}")
+        logger.info(f"Using secret (first 10 chars): {settings.BETTER_AUTH_SECRET[:10]}...")
 
         if alg in ["HS256", "HS384", "HS512"]:
             # HMAC algorithms - use the shared secret
@@ -118,32 +119,23 @@ def decode_jwt_token(token: str) -> Optional[Dict[str, Any]]:
                 settings.BETTER_AUTH_SECRET,
                 algorithms=[alg]
             )
-            logger.debug(f"Successfully decoded JWT token using HMAC for user: {payload.get('sub', 'unknown')}")
+            logger.info(f"JWT decoded successfully - sub: {payload.get('sub')}, email: {payload.get('email')}")
             return payload
         elif alg == "EdDSA":
             # EdDSA algorithm - use the JWKS module to verify
-            logger.debug("Attempting to verify EdDSA token with JWKS")
+            logger.info("Attempting to verify EdDSA token with JWKS")
             jwk = get_jwk_for_token(token)
             if jwk:
                 payload = verify_eddsa_token(token, jwk)
                 if payload:
-                    logger.debug(f"Successfully verified EdDSA token for user: {payload.get('sub', 'unknown')}")
+                    logger.info(f"EdDSA token verified - sub: {payload.get('sub')}")
                     return payload
                 else:
                     logger.warning("EdDSA token verification failed")
                     return None
             else:
                 logger.warning("No JWK found for EdDSA token")
-                # For security, if we can't properly verify the token with the appropriate algorithm,
-                # we return None to indicate authentication failure
-                # In a production system, you might want to implement a call to Better Auth's API
-                # to validate the session, but that would require additional network calls
-                logger.warning("Unable to verify EdDSA token - no public key available")
                 return None
-        elif alg in ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"]:
-            # Other asymmetric algorithms - would need different verification methods
-            logger.warning(f"Asymmetric algorithm {alg} requires public key verification, which is not fully implemented")
-            return None
         else:
             logger.warning(f"Unsupported JWT algorithm: {alg}")
             return None
@@ -155,19 +147,15 @@ def decode_jwt_token(token: str) -> Optional[Dict[str, Any]]:
         logger.warning("JWT token has expired")
         return None
     except jwt.InvalidSignatureError as e:
-        logger.warning(f"JWT signature is invalid: {str(e)}")
-        # This could happen if the secret doesn't match or algorithm is wrong
-        # For security, we should not accept invalid signatures
-        # Instead, we'll return None to indicate authentication failure
+        logger.warning(f"JWT signature is invalid: {str(e)} - secret may not match")
         return None
     except jwt.InvalidTokenError as e:
         logger.warning(f"JWT token is invalid: {str(e)}")
         return None
     except Exception as e:
-        # Other unexpected errors during decoding
         logger.error(f"Unexpected error during JWT token decoding: {str(e)}")
         import traceback
-        logger.debug(f"JWT decoding traceback: {traceback.format_exc()}")
+        logger.error(f"JWT decoding traceback: {traceback.format_exc()}")
         return None
 
 
@@ -193,7 +181,7 @@ async def get_current_user(
     session: Session = Depends(get_session),
 ) -> AuthenticatedUser:
     """
-    Dependency to get the current authenticated user from JWT token or via Better Auth session validation.
+    Dependency to get the current authenticated user from JWT token.
 
     Args:
         request: FastAPI request object
@@ -206,113 +194,66 @@ async def get_current_user(
     Raises:
         HTTPException: If token is missing, invalid, or expired
     """
-    # First, try to authenticate with JWT token from Authorization header
-    if credentials:
-        token = credentials.credentials
+    if not credentials:
+        logger.warning("No Authorization header provided")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No authorization token provided",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
-        # Decode and verify the JWT token
-        payload = decode_jwt_token(token)
+    token = credentials.credentials
+    logger.info(f"Received JWT token (first 50 chars): {token[:50]}...")
 
-        if payload:
-            # Extract user ID from payload
-            user_id = extract_user_id_from_payload(payload)
+    # Decode and verify the JWT token
+    payload = decode_jwt_token(token)
 
-            if user_id:
-                # Extract email and name from payload if available
-                user_email = payload.get('email')
-                user_name = payload.get('name')
-
-                # Get or create user in database (sync with Better Auth)
-                statement = select(User).where(User.id == user_id)
-                user = session.exec(statement).first()
-
-                if not user:
-                    # Create user record if it doesn't exist (first time from Better Auth)
-                    user = User(
-                        id=user_id,
-                        email=user_email or "",
-                        name=user_name,
-                    )
-                    session.add(user)
-                    session.commit()
-                    session.refresh(user)
-                    logger.info(f"Created new user record for: {user_id}")
-
-                return AuthenticatedUser(
-                    id=user.id,
-                    email=user.email,
-                    name=user.name,
-                )
-
-        # If JWT token is invalid, raise unauthorized error
+    if not payload:
+        logger.warning("JWT token decode failed")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    else:
-        # No JWT token provided, try to validate session with Better Auth API
-        # This approach works when the frontend can't send JWT in headers
-        # but the session cookies are available to make a request to Better Auth
-        try:
-            # Get Better Auth URL from settings
-            better_auth_url = settings.BETTER_AUTH_URL
 
-            # Make a request to Better Auth's session endpoint to validate the session
-            # This will work if the request includes the session cookies
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                # Copy cookies from the original request to validate session
-                cookies_dict = dict(request.cookies)
+    # Extract user ID from payload
+    user_id = extract_user_id_from_payload(payload)
+    logger.info(f"JWT payload - sub: {payload.get('sub')}, userId: {payload.get('userId')}, extracted user_id: {user_id}")
 
-                response = await client.get(
-                    f"{better_auth_url}/api/auth/session",
-                    cookies=cookies_dict,
-                    headers={"accept": "application/json"}
-                )
-
-                if response.status_code == 200:
-                    session_data = response.json()
-                    if "user" in session_data and session_data["user"]:
-                        user_info = session_data["user"]
-                        user_id = user_info.get("id")
-
-                        if user_id:
-                            # Extract email and name from session data
-                            user_email = user_info.get("email", "")
-                            user_name = user_info.get("name")
-
-                            # Get or create user in database (sync with Better Auth)
-                            statement = select(User).where(User.id == user_id)
-                            user = session.exec(statement).first()
-
-                            if not user:
-                                # Create user record if it doesn't exist (first time from Better Auth)
-                                user = User(
-                                    id=user_id,
-                                    email=user_email,
-                                    name=user_name,
-                                )
-                                session.add(user)
-                                session.commit()
-                                session.refresh(user)
-                                logger.info(f"Created new user record for: {user_id}")
-
-                            return AuthenticatedUser(
-                                id=user.id,
-                                email=user.email,
-                                name=user.name,
-                            )
-
-        except Exception as e:
-            logger.warning(f"Better Auth session validation failed: {e}")
-            # Continue to raise unauthorized error below
-
-        # If no JWT token and session validation failed, raise unauthorized error
+    if not user_id:
+        logger.warning(f"No user ID in JWT payload. Full payload: {payload}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No authorization credentials provided",
+            detail="Invalid token: no user ID",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # Extract email and name from payload if available
+    user_email = payload.get('email')
+    user_name = payload.get('name')
+
+    # Get or create user in database (sync with Better Auth)
+    statement = select(User).where(User.id == user_id)
+    user = session.exec(statement).first()
+
+    if not user:
+        # Create user record if it doesn't exist (first time from Better Auth)
+        user = User(
+            id=user_id,
+            email=user_email or "",
+            name=user_name,
+        )
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        logger.info(f"Created new user record for: {user_id}")
+
+    logger.info(f"Authenticated user: {user.id} ({user.email})")
+    return AuthenticatedUser(
+        id=user.id,
+        email=user.email,
+        name=user.name,
+    )
 
 
 def verify_user_access(user_id_from_path: str, current_user: AuthenticatedUser) -> None:

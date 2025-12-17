@@ -23,66 +23,85 @@ export function useAuth() {
   const login = useCallback(async (input: LoginInput) => {
     setIsLoading(true);
     try {
+      console.log('[useAuth] Starting login...');
       const result = await signIn.email({
         email: input.email,
         password: input.password,
+      });
+
+      console.log('[useAuth] signIn.email result:', {
+        hasData: !!result.data,
+        hasError: !!result.error,
+        error: result.error?.message
       });
 
       if (result.error) {
         throw new Error(result.error.message || 'Login failed');
       }
 
-      // Wait for session to be available before redirecting
-      // This ensures cookies are properly set
-      await new Promise(resolve => setTimeout(resolve, 300));
+      console.log('[useAuth] Login successful, waiting for session...');
 
-      // Refetch session to ensure it's updated
+      // Wait for session to be established
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Refetch session
       await refetch();
 
-      // Wait a bit more to ensure session is fully established
-      await new Promise(resolve => setTimeout(resolve, 200));
+      console.log('[useAuth] Redirecting to /tasks...');
 
-      router.push('/tasks');
-      router.refresh();
+      // Use window.location for more reliable redirect
+      window.location.href = '/tasks';
+
       return result;
     } catch (err) {
+      console.error('[useAuth] Login error:', err);
       throw err;
     } finally {
       setIsLoading(false);
     }
-  }, [router, refetch]);
+  }, [refetch]);
 
   const register = useCallback(async (input: RegisterInput) => {
     setIsLoading(true);
     try {
+      console.log('[useAuth] Starting registration...');
       const result = await signUp.email({
         email: input.email,
         password: input.password,
         name: input.name || '',
       });
 
+      console.log('[useAuth] signUp.email result:', {
+        hasData: !!result.data,
+        hasError: !!result.error,
+        error: result.error?.message
+      });
+
       if (result.error) {
         throw new Error(result.error.message || 'Registration failed');
       }
 
-      // Wait for session to be available before redirecting
-      await new Promise(resolve => setTimeout(resolve, 300));
+      console.log('[useAuth] Registration successful, waiting for session...');
 
-      // Refetch session to ensure it's updated
+      // Wait for session to be established
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Refetch session
       await refetch();
 
-      // Wait a bit more to ensure session is fully established
-      await new Promise(resolve => setTimeout(resolve, 200));
+      console.log('[useAuth] Redirecting to /tasks...');
 
-      router.push('/tasks');
-      router.refresh();
+      // Use window.location for more reliable redirect
+      window.location.href = '/tasks';
+
       return result;
     } catch (err) {
+      console.error('[useAuth] Registration error:', err);
       throw err;
     } finally {
       setIsLoading(false);
     }
-  }, [router, refetch]);
+  }, [refetch]);
 
   const logout = useCallback(async () => {
     setIsLoading(true);

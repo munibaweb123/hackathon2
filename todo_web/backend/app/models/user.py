@@ -1,4 +1,4 @@
-"""User model for SQLModel/PostgreSQL."""
+"""User model for SQLModel/PostgreSQL - aligned with Better Auth schema."""
 
 from datetime import datetime
 from typing import Optional, List
@@ -7,26 +7,18 @@ import uuid
 
 
 class User(SQLModel, table=True):
-    """User model - synced with Better Auth users."""
+    """User model - aligned with Better Auth schema."""
 
     __tablename__ = "users"
 
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()), primary_key=True)
-    email: str = Field(unique=True, index=True)
-    username: Optional[str] = Field(default=None, unique=True, index=True)  # Optional, unique if provided
-    password_hash: Optional[str] = Field(default=None)  # Will be stored by Better Auth, but referenced here
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    is_active: bool = Field(default=True)  # Whether the account is active
-    is_verified: bool = Field(default=False)  # Whether the email is verified
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
-    last_login_at: Optional[datetime] = None  # Last login timestamp
-    password_reset_token: Optional[str] = Field(default=None, sa_column_kwargs={"unique": True})  # Token for password reset
-    password_reset_expires: Optional[datetime] = None  # When reset token expires
-    verification_token: Optional[str] = Field(default=None, sa_column_kwargs={"unique": True})  # Token for email verification
-    verification_expires: Optional[datetime] = None  # When verification token expires
-    image: Optional[str] = None  # Profile image URL (from Better Auth)
+    # Better Auth standard fields - only include fields that actually exist in Better Auth's schema
+    id: str = Field(sa_column_kwargs={"name": "id"}, primary_key=True)  # Better Auth uses its own ID format
+    email: str = Field(sa_column_kwargs={"name": "email"}, unique=True, index=True)
+    name: Optional[str] = Field(sa_column_kwargs={"name": "name"}, default=None)  # Full name from Better Auth
+    email_verified: Optional[datetime] = Field(sa_column_kwargs={"name": "email_verified", "nullable": True}, default=None)  # Better Auth field
+    image: Optional[str] = Field(sa_column_kwargs={"name": "image"}, default=None)  # Profile image URL from Better Auth
+    created_at: datetime = Field(sa_column_kwargs={"name": "created_at"}, default_factory=datetime.utcnow)
+    updated_at: datetime = Field(sa_column_kwargs={"name": "updated_at"}, default_factory=datetime.utcnow)
 
     # Relationship to tasks
     tasks: List["Task"] = Relationship(back_populates="user")
@@ -36,11 +28,9 @@ class User(SQLModel, table=True):
             "example": {
                 "id": "user-123",
                 "email": "user@example.com",
-                "username": "johndoe",
-                "first_name": "John",
-                "last_name": "Doe",
-                "is_active": True,
-                "is_verified": True,
+                "name": "John Doe",
+                "email_verified": "2024-12-10T10:00:00Z",
+                "image": "https://example.com/avatar.jpg",
                 "created_at": "2024-12-10T10:00:00Z",
                 "updated_at": "2024-12-10T10:00:00Z",
             }

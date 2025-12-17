@@ -15,7 +15,7 @@ limiter = Limiter(key_func=get_remote_address)
 router = APIRouter()
 
 
-@router.post("", response_model=PasswordResetResponse)
+@router.post("/forgot-password", response_model=PasswordResetResponse)
 @limiter.limit("3/hour")
 async def forgot_password(
     request: Request,

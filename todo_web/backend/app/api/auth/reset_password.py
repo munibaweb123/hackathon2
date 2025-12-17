@@ -11,7 +11,7 @@ from ...schemas.auth import PasswordResetConfirmRequest, PasswordResetResponse
 router = APIRouter()
 
 
-@router.post("", response_model=PasswordResetResponse)
+@router.post("/reset-password", response_model=PasswordResetResponse)
 async def reset_password(
     reset_data: PasswordResetConfirmRequest,
     db_session: Session = Depends(get_session)

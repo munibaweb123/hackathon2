@@ -12,7 +12,7 @@ from ...schemas.auth import UserProfileResponse
 router = APIRouter()
 
 
-@router.get("", response_model=UserProfileResponse)
+@router.get("/me", response_model=UserProfileResponse)
 async def get_current_user_info(
     current_user: AuthenticatedUser = Depends(get_current_user),
     db_session: Session = Depends(get_session)
