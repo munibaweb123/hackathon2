@@ -1,0 +1,255 @@
+# Authentication API Contracts
+
+## Overview
+API contracts for the enhanced authentication system in the todo web application.
+
+## Authentication Endpoints
+
+### User Registration
+**Endpoint**: `POST /api/auth/register`
+**Description**: Register a new user account
+
+**Request**:
+```
+Content-Type: application/json
+{
+  "email": "user@example.com",
+  "password": "SecurePassword123!",
+  "username": "optional_username",
+  "first_name": "optional",
+  "last_name": "optional"
+}
+```
+
+**Responses**:
+- `201 Created`: User successfully registered
+```
+{
+  "success": true,
+  "user": {
+    "id": "uuid-string",
+    "email": "user@example.com",
+    "username": "optional_username",
+    "is_verified": false,
+    "created_at": "2025-12-17T10:00:00Z"
+  }
+}
+```
+- `400 Bad Request`: Validation error
+- `409 Conflict`: User with email already exists
+
+### User Login
+**Endpoint**: `POST /api/auth/login`
+**Description**: Authenticate user and return session token
+
+**Request**:
+```
+Content-Type: application/json
+{
+  "email": "user@example.com",
+  "password": "SecurePassword123!"
+}
+```
+
+**Responses**:
+- `200 OK`: Login successful
+```
+{
+  "success": true,
+  "user": {
+    "id": "uuid-string",
+    "email": "user@example.com",
+    "username": "username"
+  },
+  "access_token": "jwt-token-string",
+  "refresh_token": "refresh-token-string"
+}
+```
+- `400 Bad Request`: Missing fields
+- `401 Unauthorized`: Invalid credentials
+- `429 Too Many Requests`: Rate limit exceeded
+
+### User Logout
+**Endpoint**: `POST /api/auth/logout`
+**Description**: Invalidate user session
+
+**Headers**:
+```
+Authorization: Bearer {access_token}
+```
+
+**Request**:
+```
+Content-Type: application/json
+{}
+```
+
+**Responses**:
+- `200 OK`: Logout successful
+```
+{
+  "success": true,
+  "message": "Successfully logged out"
+}
+```
+- `401 Unauthorized`: Invalid or expired token
+
+### Password Reset Request
+**Endpoint**: `POST /api/auth/forgot-password`
+**Description**: Request password reset token
+
+**Request**:
+```
+Content-Type: application/json
+{
+  "email": "user@example.com"
+}
+```
+
+**Responses**:
+- `200 OK`: Reset token sent (even if email doesn't exist, for security)
+```
+{
+  "success": true,
+  "message": "If an account exists with this email, a reset link has been sent"
+}
+```
+
+### Password Reset
+**Endpoint**: `POST /api/auth/reset-password`
+**Description**: Reset user password using token
+
+**Request**:
+```
+Content-Type: application/json
+{
+  "token": "reset-token-string",
+  "new_password": "NewSecurePassword123!"
+}
+```
+
+**Responses**:
+- `200 OK`: Password reset successful
+```
+{
+  "success": true,
+  "message": "Password has been reset successfully"
+}
+```
+- `400 Bad Request`: Invalid token or password
+- `401 Unauthorized`: Token expired or invalid
+
+### Get Current User
+**Endpoint**: `GET /api/auth/me`
+**Description**: Get current authenticated user info
+
+**Headers**:
+```
+Authorization: Bearer {access_token}
+```
+
+**Responses**:
+- `200 OK`: User data retrieved
+```
+{
+  "user": {
+    "id": "uuid-string",
+    "email": "user@example.com",
+    "username": "username",
+    "first_name": "optional",
+    "last_name": "optional",
+    "is_verified": true,
+    "created_at": "2025-12-17T10:00:00Z"
+  }
+}
+```
+- `401 Unauthorized`: Invalid or expired token
+
+### Refresh Token
+**Endpoint**: `POST /api/auth/refresh`
+**Description**: Get new access token using refresh token
+
+**Request**:
+```
+Content-Type: application/json
+{
+  "refresh_token": "refresh-token-string"
+}
+```
+
+**Responses**:
+- `200 OK`: Token refreshed
+```
+{
+  "access_token": "new-jwt-token-string",
+  "refresh_token": "new-refresh-token-string"
+}
+```
+- `401 Unauthorized`: Invalid refresh token
+
+## User Management Endpoints
+
+### Update User Profile
+**Endpoint**: `PUT /api/users/profile`
+**Description**: Update user profile information
+
+**Headers**:
+```
+Authorization: Bearer {access_token}
+```
+
+**Request**:
+```
+Content-Type: application/json
+{
+  "first_name": "New First Name",
+  "last_name": "New Last Name",
+  "username": "new_username"
+}
+```
+
+**Responses**:
+- `200 OK`: Profile updated
+```
+{
+  "user": {
+    "id": "uuid-string",
+    "email": "user@example.com",
+    "username": "new_username",
+    "first_name": "New First Name",
+    "last_name": "New Last Name"
+  }
+}
+```
+- `401 Unauthorized`: Invalid or expired token
+- `409 Conflict`: Username already taken
+
+## Security Requirements
+
+### Authentication
+- All protected endpoints require valid JWT in Authorization header
+- JWTs have 1-hour expiration by default
+- Refresh tokens have 7-day expiration by default
+
+### Rate Limiting
+- Login attempts: max 5 per minute per IP
+- Registration: max 3 per hour per IP
+- Password reset requests: max 3 per hour per email
+
+### Validation
+- Passwords must be at least 8 characters with uppercase, lowercase, number, and special character
+- Emails must be valid format
+- Usernames must be 3-30 alphanumeric characters with underscores/hyphens only
+
+## Error Format
+All error responses follow this format:
+```
+{
+  "success": false,
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Human-readable error message",
+    "details": "Optional technical details"
+  }
+}
+```

@@ -10,7 +10,7 @@ import { TaskFilters } from '@/components/tasks/task-filters';
 import { ReminderForm } from '@/components/reminders/reminder-form';
 import { useAuth } from '@/hooks/use-auth';
 import { useTasks } from '@/hooks/use-tasks';
-import { apiClient } from '@/lib/api-client';
+import { jwtApiClient } from '@/services/auth/api-client';
 import type { Task, CreateTaskInput, UpdateTaskInput, Reminder } from '@/types';
 
 export default function TasksPage() {
@@ -29,7 +29,7 @@ export default function TasksPage() {
     deleteTask,
     toggleComplete,
     updateFilters,
-  } = useTasks(user?.id);
+  } = useTasks();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -96,13 +96,8 @@ export default function TasksPage() {
   };
 
   const handleCreateReminder = async (data: { task_id: number; reminder_time: string; reminder_type?: 'email' | 'push' | 'sms'; message?: string }) => {
-    if (!user?.id) {
-      toast.error('User not authenticated');
-      return;
-    }
-
     try {
-      await apiClient.createReminder(user.id, data);
+      await jwtApiClient.createReminder(data);
       toast.success('Reminder created successfully');
       setShowReminderForm(false);
       setSelectedTaskForReminder(null);

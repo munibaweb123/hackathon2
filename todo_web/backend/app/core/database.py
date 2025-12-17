@@ -5,7 +5,7 @@ from typing import Generator
 from .config import settings
 
 # Import models to ensure they're registered with SQLModel metadata
-from ..models import task, reminder, preference  # noqa: F401
+from ..models import task, reminder, preference, user  # noqa: F401
 
 # Create engine with Neon PostgreSQL connection
 # Using connection pooling for serverless environment

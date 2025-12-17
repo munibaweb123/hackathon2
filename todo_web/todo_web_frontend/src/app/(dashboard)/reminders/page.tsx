@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { ReminderForm } from '@/components/reminders/reminder-form';
 import { useAuth } from '@/hooks/use-auth';
-import { apiClient } from '@/lib/api-client';
+import { jwtApiClient } from '@/services/auth/api-client';
 import type { Reminder } from '@/types';
 
 export default function RemindersPage() {
@@ -20,93 +20,91 @@ export default function RemindersPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!user?.id) return;
-
     const fetchReminders = async () => {
       try {
         setIsLoading(true);
-        const data = await apiClient.getReminders(user.id);
+        const data = await jwtApiClient.getReminders();
         setReminders(data);
-      } catch (error) {
-        console.error('Failed to fetch reminders:', error);
-        toast.error('Failed to load reminders');
+      } catch (error: unknown) {
+        const errorMessage = error && typeof error === 'object' && 'message' in error
+          ? (error as { message: string }).message
+          : 'Failed to load reminders';
+        console.error('Failed to fetch reminders:', errorMessage, error);
+        toast.error(errorMessage);
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchReminders();
-  }, [user?.id]);
+  }, []);
 
   const handleCreateReminder = async (data: { task_id: number; reminder_time: string; reminder_type?: 'email' | 'push' | 'sms'; message?: string }) => {
-    if (!user?.id) {
-      toast.error('User not authenticated');
-      return;
-    }
-
     setIsSubmitting(true);
     try {
-      const newReminder = await apiClient.createReminder(user.id, data);
+      const newReminder = await jwtApiClient.createReminder(data);
       setReminders(prev => [...prev, newReminder]);
       toast.success('Reminder created successfully');
       setShowReminderForm(false);
-    } catch (error) {
-      console.error('Failed to create reminder:', error);
-      toast.error('Failed to create reminder');
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'message' in error
+        ? (error as { message: string }).message
+        : 'Failed to create reminder';
+      console.error('Failed to create reminder:', errorMessage, error);
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleUpdateReminder = async (data: { reminder_time?: string; reminder_type?: 'email' | 'push' | 'sms'; status?: 'pending' | 'sent' | 'cancelled'; message?: string }) => {
-    if (!user?.id || !editingReminder) {
-      toast.error('User not authenticated or no reminder selected');
+    if (!editingReminder) {
+      toast.error('No reminder selected');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const updatedReminder = await apiClient.updateReminder(user.id, editingReminder.id, data);
+      const updatedReminder = await jwtApiClient.updateReminder(editingReminder.id, data);
       setReminders(prev => prev.map(r => r.id === editingReminder.id ? updatedReminder : r));
       toast.success('Reminder updated successfully');
       setEditingReminder(null);
-    } catch (error) {
-      console.error('Failed to update reminder:', error);
-      toast.error('Failed to update reminder');
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'message' in error
+        ? (error as { message: string }).message
+        : 'Failed to update reminder';
+      console.error('Failed to update reminder:', errorMessage, error);
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDeleteReminder = async (reminderId: string) => {
-    if (!user?.id) {
-      toast.error('User not authenticated');
-      return;
-    }
-
     try {
-      await apiClient.deleteReminder(user.id, reminderId);
+      await jwtApiClient.deleteReminder(reminderId);
       setReminders(prev => prev.filter(r => r.id !== reminderId));
       toast.success('Reminder deleted successfully');
-    } catch (error) {
-      console.error('Failed to delete reminder:', error);
-      toast.error('Failed to delete reminder');
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'message' in error
+        ? (error as { message: string }).message
+        : 'Failed to delete reminder';
+      console.error('Failed to delete reminder:', errorMessage, error);
+      toast.error(errorMessage);
     }
   };
 
   const handleCancelReminder = async (reminderId: string) => {
-    if (!user?.id) {
-      toast.error('User not authenticated');
-      return;
-    }
-
     try {
-      const updatedReminder = await apiClient.cancelReminder(user.id, reminderId);
+      const updatedReminder = await jwtApiClient.cancelReminder(reminderId);
       setReminders(prev => prev.map(r => r.id === reminderId ? updatedReminder : r));
       toast.success('Reminder cancelled successfully');
-    } catch (error) {
-      console.error('Failed to cancel reminder:', error);
-      toast.error('Failed to cancel reminder');
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'message' in error
+        ? (error as { message: string }).message
+        : 'Failed to cancel reminder';
+      console.error('Failed to cancel reminder:', errorMessage, error);
+      toast.error(errorMessage);
     }
   };
 

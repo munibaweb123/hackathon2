@@ -216,6 +216,10 @@ See `.specify/memory/constitution.md` for code quality, testing, performance, se
 - JSON file (`tasks.json` in working directory) (002-todo-console-app)
 - Python 3.13+ + rich (console formatting), python-dateutil (recurrence calculation) (003-advanced-todo-features)
 - JSON file (`tasks.json` - extending existing JsonStore) (003-advanced-todo-features)
+- Python 3.13+ (backend), JavaScript/TypeScript (frontend) + FastAPI (backend), Better Auth (frontend), python-jose/cryptography (JWT handling), PyJWT (001-auth-jwt-integration)
+- N/A (authentication layer, existing task storage remains unchanged) (001-auth-jwt-integration)
+- Python 3.13+ (backend), JavaScript/TypeScript (frontend) + FastAPI (backend), Better Auth (frontend), python-jose/cryptography (JWT handling), PyJWT, Next.js (frontend framework) (001-auth-improvement)
+- Existing database structure (likely SQLite/PostgreSQL), JWT tokens for session management (001-auth-improvement)
 
 ## Recent Changes
 - 001-todo-console-app: Added Python 3.13+ + None (standard library only - in-memory storage)

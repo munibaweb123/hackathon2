@@ -24,25 +24,22 @@ const taskSchema = z.object({
   priority: z.enum(['low', 'medium', 'high']),
   due_date: z.string().optional(),
   is_recurring: z.boolean().optional(),
-  recurrence_pattern: z.string().nullable().optional().transform((val) => {
-    // If the value is one of the allowed patterns, return it; otherwise return null
-    const allowedValues = ['daily', 'weekly', 'biweekly', 'monthly', 'yearly', 'custom'];
-    return allowedValues.includes(val as any) ? val : null;
-  }),
+  recurrence_pattern: z.string().nullable().optional(),
   recurrence_interval: z.number().min(1).optional(),
   recurrence_end_date: z.string().optional(),
 }).refine((data) => {
-  // If the task is recurring (true), recurrence_pattern is required and must be valid (not null)
+  // If the task is recurring (true), recurrence_pattern is required and must be valid
   if (data.is_recurring === true) {
-    return data.recurrence_pattern !== undefined && data.recurrence_pattern !== null && data.recurrence_pattern !== '';
+    const allowedValues = ['daily', 'weekly', 'biweekly', 'monthly', 'yearly', 'custom'];
+    return data.recurrence_pattern && allowedValues.includes(data.recurrence_pattern);
   }
   return true; // If not recurring, validation passes
 }, {
   message: 'Recurrence pattern is required for recurring tasks',
-  path: ['recurrence_pattern'], // This specifies where the error should be displayed
+  path: ['recurrence_pattern'],
 });
 
-type TaskFormData = z.output<typeof taskSchema>;
+type TaskFormData = z.infer<typeof taskSchema>;
 
 interface CreateTaskFormProps {
   open: boolean;
@@ -129,19 +126,18 @@ export function TaskForm({ open, onOpenChange, task, onSubmit, isLoading }: Task
       return date.toISOString();
     };
 
-    const submitData = {
+    const submitData: CreateTaskInput | UpdateTaskInput = {
       title: data.title,
       description: data.description || undefined,
       priority: data.priority,
       due_date: data.due_date ? convertDateToDateTime(data.due_date) : undefined,
       is_recurring: data.is_recurring,
-      recurrence_pattern: data.recurrence_pattern || undefined,
+      recurrence_pattern: (data.recurrence_pattern as RecurrencePattern) || undefined,
       recurrence_interval: data.recurrence_interval,
       recurrence_end_date: data.recurrence_end_date ? convertDateToDateTime(data.recurrence_end_date) : undefined,
     };
 
-    // TypeScript will narrow the type based on whether task exists
-    await (onSubmit as (data: CreateTaskInput | UpdateTaskInput) => Promise<void>)(submitData);
+    await onSubmit(submitData as any);
     onOpenChange(false);
     reset();
   };

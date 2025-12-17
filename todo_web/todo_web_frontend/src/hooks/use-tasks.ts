@@ -1,10 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { apiClient } from '@/lib/api-client';
+import { jwtApiClient } from '@/services/auth/api-client';
 import type { Task, CreateTaskInput, UpdateTaskInput, TaskFilters, ApiError } from '@/types';
 
-export function useTasks(userId: string | undefined) {
+export function useTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
@@ -15,12 +15,10 @@ export function useTasks(userId: string | undefined) {
   });
 
   const fetchTasks = useCallback(async () => {
-    if (!userId) return;
-
     setIsLoading(true);
     setError(null);
     try {
-      const data = await apiClient.getTasks(userId, filters);
+      const data = await jwtApiClient.getTasks(filters);
       // Ensure all tasks have the required fields with default values
       const processedTasks = data.map(task => ({
         ...task,
@@ -37,19 +35,17 @@ export function useTasks(userId: string | undefined) {
     } finally {
       setIsLoading(false);
     }
-  }, [userId, filters]);
+  }, [filters]);
 
   useEffect(() => {
     fetchTasks();
   }, [fetchTasks]);
 
   const createTask = useCallback(async (input: CreateTaskInput) => {
-    if (!userId) throw new Error('User not authenticated');
-
     setIsLoading(true);
     setError(null);
     try {
-      const newTask = await apiClient.createTask(userId, input);
+      const newTask = await jwtApiClient.createTask(input);
       // Ensure the new task has the required fields with default values
       const processedTask = {
         ...newTask,
@@ -68,15 +64,13 @@ export function useTasks(userId: string | undefined) {
     } finally {
       setIsLoading(false);
     }
-  }, [userId]);
+  }, []);
 
   const updateTask = useCallback(async (taskId: number, input: UpdateTaskInput) => {
-    if (!userId) throw new Error('User not authenticated');
-
     setIsLoading(true);
     setError(null);
     try {
-      const updatedTask = await apiClient.updateTask(userId, taskId, input);
+      const updatedTask = await jwtApiClient.updateTask(taskId, input);
       // Ensure the updated task has the required fields with default values
       const processedTask = {
         ...updatedTask,
@@ -97,15 +91,13 @@ export function useTasks(userId: string | undefined) {
     } finally {
       setIsLoading(false);
     }
-  }, [userId]);
+  }, []);
 
   const deleteTask = useCallback(async (taskId: number) => {
-    if (!userId) throw new Error('User not authenticated');
-
     setIsLoading(true);
     setError(null);
     try {
-      await apiClient.deleteTask(userId, taskId);
+      await jwtApiClient.deleteTask(taskId);
       setTasks((prev) => prev.filter((task) => task.id !== taskId));
     } catch (err) {
       setError(err as ApiError);
@@ -113,13 +105,11 @@ export function useTasks(userId: string | undefined) {
     } finally {
       setIsLoading(false);
     }
-  }, [userId]);
+  }, []);
 
   const toggleComplete = useCallback(async (taskId: number) => {
-    if (!userId) throw new Error('User not authenticated');
-
     try {
-      const updatedTask = await apiClient.toggleTaskComplete(userId, taskId);
+      const updatedTask = await jwtApiClient.toggleTaskComplete(taskId);
       // Ensure the updated task has the required fields with default values
       const processedTask = {
         ...updatedTask,
@@ -138,7 +128,7 @@ export function useTasks(userId: string | undefined) {
       setError(err as ApiError);
       throw err;
     }
-  }, [userId]);
+  }, []);
 
   const updateFilters = useCallback((newFilters: Partial<TaskFilters>) => {
     setFilters((prev) => ({ ...prev, ...newFilters }));

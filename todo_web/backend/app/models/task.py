@@ -48,6 +48,9 @@ class Task(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
+    # Relationship to user
+    user: Optional["User"] = Relationship(back_populates="tasks")
+
     # Relationship to reminders
     reminders: List["Reminder"] = Relationship(back_populates="task")
 
