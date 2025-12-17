@@ -25,9 +25,12 @@ export default function RemindersPage() {
         setIsLoading(true);
         const data = await jwtApiClient.getReminders();
         setReminders(data);
-      } catch (error) {
-        console.error('Failed to fetch reminders:', error);
-        toast.error('Failed to load reminders');
+      } catch (error: unknown) {
+        const errorMessage = error && typeof error === 'object' && 'message' in error
+          ? (error as { message: string }).message
+          : 'Failed to load reminders';
+        console.error('Failed to fetch reminders:', errorMessage, error);
+        toast.error(errorMessage);
       } finally {
         setIsLoading(false);
       }
@@ -43,9 +46,12 @@ export default function RemindersPage() {
       setReminders(prev => [...prev, newReminder]);
       toast.success('Reminder created successfully');
       setShowReminderForm(false);
-    } catch (error) {
-      console.error('Failed to create reminder:', error);
-      toast.error('Failed to create reminder');
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'message' in error
+        ? (error as { message: string }).message
+        : 'Failed to create reminder';
+      console.error('Failed to create reminder:', errorMessage, error);
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -63,9 +69,12 @@ export default function RemindersPage() {
       setReminders(prev => prev.map(r => r.id === editingReminder.id ? updatedReminder : r));
       toast.success('Reminder updated successfully');
       setEditingReminder(null);
-    } catch (error) {
-      console.error('Failed to update reminder:', error);
-      toast.error('Failed to update reminder');
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'message' in error
+        ? (error as { message: string }).message
+        : 'Failed to update reminder';
+      console.error('Failed to update reminder:', errorMessage, error);
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -76,9 +85,12 @@ export default function RemindersPage() {
       await jwtApiClient.deleteReminder(reminderId);
       setReminders(prev => prev.filter(r => r.id !== reminderId));
       toast.success('Reminder deleted successfully');
-    } catch (error) {
-      console.error('Failed to delete reminder:', error);
-      toast.error('Failed to delete reminder');
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'message' in error
+        ? (error as { message: string }).message
+        : 'Failed to delete reminder';
+      console.error('Failed to delete reminder:', errorMessage, error);
+      toast.error(errorMessage);
     }
   };
 
@@ -87,9 +99,12 @@ export default function RemindersPage() {
       const updatedReminder = await jwtApiClient.cancelReminder(reminderId);
       setReminders(prev => prev.map(r => r.id === reminderId ? updatedReminder : r));
       toast.success('Reminder cancelled successfully');
-    } catch (error) {
-      console.error('Failed to cancel reminder:', error);
-      toast.error('Failed to cancel reminder');
+    } catch (error: unknown) {
+      const errorMessage = error && typeof error === 'object' && 'message' in error
+        ? (error as { message: string }).message
+        : 'Failed to cancel reminder';
+      console.error('Failed to cancel reminder:', errorMessage, error);
+      toast.error(errorMessage);
     }
   };
 
