@@ -236,17 +236,57 @@ async def get_current_user(
     statement = select(User).where(User.id == user_id)
     user = session.exec(statement).first()
 
-    if not user:
-        # Create user record if it doesn't exist (first time from Better Auth)
-        user = User(
-            id=user_id,
-            email=user_email or "",
-            name=user_name,
+    if not user and user_email:
+        # Check if user exists with the same email but different ID (e.g., account recovery scenario)
+        email_statement = select(User).where(User.email == user_email)
+        user_by_email = session.exec(email_statement).first()
+        if user_by_email:
+            # Update existing user with new ID from Better Auth
+            user_by_email.id = user_id
+            if user_name:
+                user_by_email.name = user_name
+            session.add(user_by_email)
+            session.commit()
+            session.refresh(user_by_email)
+            user = user_by_email
+            logger.info(f"Updated user ID for email {user_email} to: {user_id}")
+        else:
+            # Create new user record
+            user = User(
+                id=user_id,
+                email=user_email or "",
+                name=user_name,
+            )
+            session.add(user)
+            try:
+                session.commit()
+                session.refresh(user)
+                logger.info(f"Created new user record for: {user_id}")
+            except Exception as e:
+                session.rollback()
+                # Handle potential unique constraint violations
+                logger.warning(f"Failed to create user {user_id} with email {user_email}: {str(e)}")
+                # Try to find if user exists now
+                statement = select(User).where(User.id == user_id)
+                user = session.exec(statement).first()
+                if not user:
+                    # Check if it's an email conflict
+                    email_statement = select(User).where(User.email == user_email)
+                    user = session.exec(email_statement).first()
+                    if user:
+                        logger.info(f"Found existing user with email {user_email}: {user.id}")
+                    else:
+                        raise HTTPException(
+                            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail="Failed to create or retrieve user record"
+                        )
+    elif not user:
+        # Handle case where no email is provided (fallback)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token: no user email provided",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-        session.add(user)
-        session.commit()
-        session.refresh(user)
-        logger.info(f"Created new user record for: {user_id}")
 
     logger.info(f"Authenticated user: {user.id} ({user.email})")
     return AuthenticatedUser(
