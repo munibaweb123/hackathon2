@@ -241,15 +241,15 @@ async def get_current_user(
         email_statement = select(User).where(User.email == user_email)
         user_by_email = session.exec(email_statement).first()
         if user_by_email:
-            # Update existing user with new ID from Better Auth
-            user_by_email.id = user_id
-            if user_name:
-                user_by_email.name = user_name
+            # Rather than updating the ID (which causes FK constraint violations),
+            # we should use the existing user record and update other fields
+            user_by_email.name = user_name
+            user_by_email.email = user_email  # Ensure email is consistent
             session.add(user_by_email)
             session.commit()
             session.refresh(user_by_email)
             user = user_by_email
-            logger.info(f"Updated user ID for email {user_email} to: {user_id}")
+            logger.info(f"Using existing user record for email {user_email}, ID: {user_by_email.id}")
         else:
             # Create new user record
             user = User(
