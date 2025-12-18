@@ -1,6 +1,95 @@
-# Claude Code Rules
+# Claude Code Rules - hackathon-todo Project
 
 This file is generated during init for the selected agent.
+
+## Project Overview
+
+**Project Name**: hackathon-todo
+**Description**: Full-stack todo application with multi-phase development approach
+**Repository Structure**: Monorepo with separate frontend and backend directories
+
+### Phase Development
+
+| Phase | Name | Status | Description |
+|-------|------|--------|-------------|
+| Phase 1 | Console App | Completed | Basic console-based todo with in-memory/JSON storage |
+| Phase 2 | Web App | In Progress | Full-stack web app with REST API and authentication |
+| Phase 3 | Chatbot | Planned | AI-powered chatbot for task management |
+
+## Project Structure (Monorepo)
+
+```
+hackathon_2/
+├── backend/                 # FastAPI backend
+│   ├── app/
+│   │   ├── api/            # Route handlers (tasks, auth, reminders)
+│   │   ├── auth/           # Authentication middleware & utils
+│   │   ├── core/           # Config, database, security, JWKS
+│   │   ├── models/         # SQLModel entities
+│   │   ├── schemas/        # Pydantic schemas
+│   │   ├── services/       # Business logic
+│   │   └── utils/          # Utilities (recurrence, reminder scheduler)
+│   ├── tests/
+│   ├── .env
+│   ├── requirements.txt
+│   └── CLAUDE.md
+├── frontend/                # Next.js 14 frontend
+│   └── src/
+│       ├── app/            # App Router pages
+│       ├── components/     # UI components (auth, tasks, layout)
+│       ├── hooks/          # Custom hooks (use-auth, use-tasks)
+│       ├── lib/            # Utilities (auth-client, api-client)
+│       ├── services/       # Service layer
+│       └── types/          # TypeScript types
+├── src/                     # Console app (Phase 1 artifact)
+│   └── todo_app/
+├── specs/                   # Specifications
+│   ├── features/           # Feature specifications
+│   ├── api/                # REST endpoint definitions
+│   ├── database/           # Schema and data model specs
+│   └── 001-hackathon-todo-monorepo/  # Migration specs
+├── .spec-kit/
+│   └── config.yaml         # Project phases and configuration
+└── docker-compose.yml
+```
+
+## How to Use Specs
+
+When referencing specifications, use the `@specs/` notation:
+
+- `@specs/features/task-crud.md` - Task CRUD operations spec
+- `@specs/api/rest-endpoints.md` - API endpoint definitions
+- `@specs/database/schema.md` - Database schema
+- `@specs/ui/` - UI component specifications
+
+**Rules for spec references**:
+1. Always read the relevant spec before implementing a feature
+2. Ensure implementation matches the acceptance criteria in specs
+3. Update specs when requirements change (with proper review)
+4. Use specs as the source of truth for API contracts
+
+## Development Workflow
+
+### Backend First Approach
+
+1. **Define API Contract** - Create/update `@specs/api/rest-endpoints.md`
+2. **Implement Backend** - Build FastAPI endpoints in `/backend`
+3. **Test Backend** - Ensure all endpoints work with tests
+4. **Frontend Integration** - Connect Next.js frontend to API
+5. **E2E Testing** - Validate full flow works
+
+### Key Commands
+
+```bash
+# Backend development
+cd backend && uvicorn app.main:app --reload
+
+# Frontend development
+cd frontend && npm install && npm run dev
+
+# Run with Docker
+docker-compose up
+```
 
 You are an expert AI assistant specializing in Spec-Driven Development (SDD). Your primary goal is to work with the architext to build products.
 
@@ -220,6 +309,10 @@ See `.specify/memory/constitution.md` for code quality, testing, performance, se
 - N/A (authentication layer, existing task storage remains unchanged) (001-auth-jwt-integration)
 - Python 3.13+ (backend), JavaScript/TypeScript (frontend) + FastAPI (backend), Better Auth (frontend), python-jose/cryptography (JWT handling), PyJWT, Next.js (frontend framework) (001-auth-improvement)
 - Existing database structure (likely SQLite/PostgreSQL), JWT tokens for session management (001-auth-improvement)
+- Python 3.13+ (backend), TypeScript/Node.js 20+ (frontend) + FastAPI, SQLModel, Better Auth, Next.js 14, Tailwind CSS (001-hackathon-todo-monorepo)
+- SQLite (development), PostgreSQL (production via docker-compose) (001-hackathon-todo-monorepo)
+- Python 3.13+ (backend), JavaScript/TypeScript (frontend) + FastAPI, OpenAI Agents SDK, Official MCP SDK, SQLModel, Better Auth (001-ai-chatbot-mcp)
+- PostgreSQL (production via Neon Serverless), SQLite (development) (001-ai-chatbot-mcp)
 
 ## Recent Changes
 - 001-todo-console-app: Added Python 3.13+ + None (standard library only - in-memory storage)

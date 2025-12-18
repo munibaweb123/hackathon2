@@ -1,0 +1,88 @@
+version: "3.8"
+
+services:
+  # Backend API service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hackathon-todo-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/hackathon_todo
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
+      - CORS_ORIGINS=http://localhost:3000
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - hackathon-network
+
+  # Frontend Next.js service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: hackathon-todo-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-dev-auth-secret}
+      - BETTER_AUTH_URL=http://localhost:3000
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+    networks:
+      - hackathon-network
+
+  # PostgreSQL database
+  db:
+    image: postgres:15-alpine
+    container_name: hackathon-todo-db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=hackathon_todo
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hackathon-network
+
+  # Optional: pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: hackathon-todo-pgadmin
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@hackathon.local
+      - PGADMIN_DEFAULT_PASSWORD=admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+    profiles:
+      - tools
+    networks:
+      - hackathon-network
+
+volumes:
+  postgres_data:
+
+networks:
+  hackathon-network:
+    driver: bridge

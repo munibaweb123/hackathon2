@@ -1,0 +1,566 @@
+openapi: 3.1.0
+info:
+  title: Hackathon Todo API
+  description: REST API for the hackathon-todo application
+  version: 1.0.0
+  contact:
+    name: API Support
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+  - url: https://api.hackathon-todo.example.com
+    description: Production
+
+tags:
+  - name: health
+    description: Health check endpoints
+  - name: auth
+    description: Authentication endpoints
+  - name: tasks
+    description: Task management
+  - name: reminders
+    description: Reminder management
+  - name: preferences
+    description: User preferences
+
+paths:
+  /health:
+    get:
+      tags: [health]
+      summary: Health check
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+
+  /api/auth/me:
+    get:
+      tags: [auth]
+      summary: Get current user
+      operationId: getCurrentUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Current user info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/tasks:
+    get:
+      tags: [tasks]
+      summary: List tasks
+      operationId: listTasks
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: completed
+          in: query
+          schema:
+            type: boolean
+        - name: priority
+          in: query
+          schema:
+            $ref: '#/components/schemas/Priority'
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Task'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [tasks]
+      summary: Create task
+      operationId: createTask
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+      responses:
+        '201':
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/tasks/{taskId}:
+    parameters:
+      - name: taskId
+        in: path
+        required: true
+        schema:
+          type: integer
+
+    get:
+      tags: [tasks]
+      summary: Get task
+      operationId: getTask
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [tasks]
+      summary: Update task
+      operationId: updateTask
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskUpdate'
+      responses:
+        '200':
+          description: Task updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [tasks]
+      summary: Delete task
+      operationId: deleteTask
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: Task deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/reminders:
+    get:
+      tags: [reminders]
+      summary: List reminders
+      operationId: listReminders
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: task_id
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ReminderStatus'
+      responses:
+        '200':
+          description: List of reminders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Reminder'
+
+    post:
+      tags: [reminders]
+      summary: Create reminder
+      operationId: createReminder
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReminderCreate'
+      responses:
+        '201':
+          description: Reminder created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reminder'
+
+  /api/reminders/{reminderId}:
+    parameters:
+      - name: reminderId
+        in: path
+        required: true
+        schema:
+          type: string
+
+    delete:
+      tags: [reminders]
+      summary: Delete reminder
+      operationId: deleteReminder
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: Reminder deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/preferences:
+    get:
+      tags: [preferences]
+      summary: Get user preferences
+      operationId: getPreferences
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User preferences
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPreference'
+
+    put:
+      tags: [preferences]
+      summary: Update preferences
+      operationId: updatePreferences
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PreferenceUpdate'
+      responses:
+        '200':
+          description: Preferences updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPreference'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Better Auth JWT token
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+          nullable: true
+        image:
+          type: string
+          nullable: true
+        email_verified:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Priority:
+      type: string
+      enum: [low, medium, high]
+
+    RecurrencePattern:
+      type: string
+      enum: [daily, weekly, biweekly, monthly, yearly, custom]
+
+    Task:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        completed:
+          type: boolean
+        priority:
+          $ref: '#/components/schemas/Priority'
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+        user_id:
+          type: string
+        is_recurring:
+          type: boolean
+        recurrence_pattern:
+          $ref: '#/components/schemas/RecurrencePattern'
+          nullable: true
+        recurrence_interval:
+          type: integer
+          nullable: true
+        recurrence_end_date:
+          type: string
+          format: date-time
+          nullable: true
+        parent_task_id:
+          type: integer
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TaskCreate:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1000
+        priority:
+          $ref: '#/components/schemas/Priority'
+        due_date:
+          type: string
+          format: date-time
+        is_recurring:
+          type: boolean
+        recurrence_pattern:
+          $ref: '#/components/schemas/RecurrencePattern'
+        recurrence_interval:
+          type: integer
+        recurrence_end_date:
+          type: string
+          format: date-time
+
+    TaskUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1000
+        completed:
+          type: boolean
+        priority:
+          $ref: '#/components/schemas/Priority'
+        due_date:
+          type: string
+          format: date-time
+
+    ReminderType:
+      type: string
+      enum: [email, push, sms]
+
+    ReminderStatus:
+      type: string
+      enum: [pending, sent, cancelled]
+
+    Reminder:
+      type: object
+      properties:
+        id:
+          type: string
+        task_id:
+          type: integer
+        user_id:
+          type: string
+        reminder_time:
+          type: string
+          format: date-time
+        reminder_type:
+          $ref: '#/components/schemas/ReminderType'
+        status:
+          $ref: '#/components/schemas/ReminderStatus'
+        message:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ReminderCreate:
+      type: object
+      required: [task_id, reminder_time]
+      properties:
+        task_id:
+          type: integer
+        reminder_time:
+          type: string
+          format: date-time
+        reminder_type:
+          $ref: '#/components/schemas/ReminderType'
+        message:
+          type: string
+          maxLength: 500
+
+    Theme:
+      type: string
+      enum: [light, dark, auto]
+
+    NotificationPreference:
+      type: string
+      enum: [all, mute, scheduled]
+
+    UserPreference:
+      type: object
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        theme:
+          $ref: '#/components/schemas/Theme'
+        language:
+          type: string
+        task_notifications:
+          $ref: '#/components/schemas/NotificationPreference'
+        reminder_notifications:
+          $ref: '#/components/schemas/NotificationPreference'
+        email_notifications:
+          type: boolean
+        default_view:
+          type: string
+        show_completed_tasks:
+          type: boolean
+        group_by:
+          type: string
+        auto_archive_completed:
+          type: boolean
+        auto_snooze_time:
+          type: integer
+          nullable: true
+        work_hours_start:
+          type: string
+        work_hours_end:
+          type: string
+        custom_settings:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PreferenceUpdate:
+      type: object
+      properties:
+        theme:
+          $ref: '#/components/schemas/Theme'
+        language:
+          type: string
+        task_notifications:
+          $ref: '#/components/schemas/NotificationPreference'
+        reminder_notifications:
+          $ref: '#/components/schemas/NotificationPreference'
+        email_notifications:
+          type: boolean
+        default_view:
+          type: string
+        show_completed_tasks:
+          type: boolean
+        group_by:
+          type: string
+        auto_archive_completed:
+          type: boolean
+        auto_snooze_time:
+          type: integer
+        work_hours_start:
+          type: string
+        work_hours_end:
+          type: string
+
+    Error:
+      type: object
+      properties:
+        detail:
+          type: string
+        code:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

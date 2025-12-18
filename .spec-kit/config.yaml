@@ -1,0 +1,77 @@
+# Spec-Kit Configuration for hackathon-todo
+# This file defines project phases and configuration
+
+project:
+  name: hackathon-todo
+  description: Full-stack todo application with multi-phase development
+  version: 1.0.0
+
+phases:
+  phase1-console:
+    name: Console Application
+    description: Basic console-based todo app with in-memory storage
+    status: completed
+    features:
+      - task-crud
+      - data-persistence
+    technologies:
+      - Python 3.13+
+      - Rich (console formatting)
+      - JSON file storage
+
+  phase2-web:
+    name: Web Application
+    description: Full-stack web application with REST API
+    status: in-progress
+    features:
+      - rest-api
+      - web-frontend
+      - user-authentication
+    technologies:
+      backend:
+        - FastAPI
+        - SQLModel
+        - PostgreSQL/SQLite
+        - Better Auth JWT
+      frontend:
+        - Next.js 14 (App Router)
+        - TypeScript
+        - Tailwind CSS
+
+  phase3-chatbot:
+    name: Chatbot Integration
+    description: AI-powered chatbot for task management
+    status: planned
+    features:
+      - natural-language-processing
+      - voice-commands
+      - smart-reminders
+    technologies:
+      - LangChain/OpenAI
+      - WebSocket
+      - Speech-to-Text API
+
+specs:
+  directory: specs/
+  structure:
+    features: specs/features/
+    api: specs/api/
+    database: specs/database/
+    ui: specs/ui/
+
+development:
+  workflow:
+    - backend-first
+    - api-contract-definition
+    - frontend-integration
+    - testing
+    - deployment
+
+  branches:
+    pattern: "{number}-{feature-name}"
+    main: main
+
+  environments:
+    - development
+    - staging
+    - production

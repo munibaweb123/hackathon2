@@ -1,0 +1,192 @@
+openapi: 3.0.3
+info:
+  title: AI Chatbot for Todo Management API
+  description: API for managing todos through natural language chat interface
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000
+    description: Development server
+paths:
+  /api/{user_id}/chat:
+    post:
+      summary: Send message to AI chatbot and get response
+      description: Process user message through AI agent and return appropriate response with tool calls
+      operationId: chatWithBot
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: User identifier
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - message
+              properties:
+                conversation_id:
+                  type: integer
+                  description: Existing conversation ID (creates new if not provided)
+                  example: 123
+                message:
+                  type: string
+                  description: User's natural language message
+                  example: "Add a task to buy groceries"
+      responses:
+        '200':
+          description: AI assistant response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conversation_id:
+                    type: integer
+                    description: The conversation ID
+                    example: 123
+                  response:
+                    type: string
+                    description: AI assistant's response
+                    example: "I've added the task 'buy groceries' to your list."
+                  tool_calls:
+                    type: array
+                    description: List of MCP tools invoked
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                          description: Name of the tool called
+                          example: "add_task"
+                        parameters:
+                          type: object
+                          description: Parameters passed to the tool
+                          example:
+                            user_id: "user123"
+                            title: "buy groceries"
+      security:
+        - BearerAuth: []
+
+  /api/conversations:
+    get:
+      summary: List user conversations
+      description: Retrieve all conversations for the authenticated user
+      operationId: listConversations
+      responses:
+        '200':
+          description: List of user conversations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Conversation'
+      security:
+        - BearerAuth: []
+
+  /api/conversations/{conversation_id}:
+    get:
+      summary: Get conversation details
+      description: Retrieve details of a specific conversation including message history
+      operationId: getConversation
+      parameters:
+        - name: conversation_id
+          in: path
+          required: true
+          description: Conversation identifier
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Conversation details with message history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationWithMessages'
+      security:
+        - BearerAuth: []
+
+components:
+  schemas:
+    Conversation:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Unique conversation identifier
+          example: 123
+        user_id:
+          type: string
+          description: User identifier
+          example: "user123"
+        created_at:
+          type: string
+          format: date-time
+          description: Conversation creation timestamp
+          example: "2025-12-18T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Last interaction timestamp
+          example: "2025-12-18T10:30:00Z"
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique message identifier
+          example: "msg-uuid-123"
+        conversation_id:
+          type: integer
+          description: Associated conversation ID
+          example: 123
+        user_id:
+          type: string
+          description: Message author
+          example: "user123"
+        role:
+          type: string
+          enum: [user, assistant, system]
+          description: Role of the message author
+          example: "user"
+        content:
+          type: string
+          description: Message content
+          example: "Add a task to buy groceries"
+        created_at:
+          type: string
+          format: date-time
+          description: Message creation timestamp
+          example: "2025-12-18T10:15:00Z"
+        tool_calls:
+          type: array
+          description: Tools called by AI
+          items:
+            type: object
+        tool_responses:
+          type: array
+          description: Results from tool calls
+          items:
+            type: object
+
+    ConversationWithMessages:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/Conversation'
+        - type: object
+          properties:
+            messages:
+              type: array
+              items:
+                $ref: '#/components/schemas/Message'
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
