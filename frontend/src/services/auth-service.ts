@@ -67,12 +67,12 @@ authApi.interceptors.response.use(
           refreshToken
         });
 
-        if (response.data.accessToken) {
-          localStorage.setItem('access_token', response.data.accessToken);
-          localStorage.setItem('refresh_token', response.data.refreshToken);
+        if (response.accessToken) {
+          localStorage.setItem('access_token', response.accessToken);
+          localStorage.setItem('refresh_token', response.refreshToken);
 
           // Retry the original request with new token
-          originalRequest.headers.Authorization = `Bearer ${response.data.accessToken}`;
+          originalRequest.headers.Authorization = `Bearer ${response.accessToken}`;
           return authApi(originalRequest);
         }
       } catch (refreshError) {
@@ -102,11 +102,11 @@ export const registerUser = async (
 
     // Store tokens if registration is successful and returns them
     if (response.data.success && response.data.user) {
-      if (response.data['accessToken']) {
-        localStorage.setItem('access_token', response.data['accessToken']);
+      if (response.data.accessToken) {
+        localStorage.setItem('access_token', response.data.accessToken);
       }
-      if (response.data['refreshToken']) {
-        localStorage.setItem('refresh_token', response.data['refreshToken']);
+      if (response.data.refreshToken) {
+        localStorage.setItem('refresh_token', response.data.refreshToken);
       }
     }
 
