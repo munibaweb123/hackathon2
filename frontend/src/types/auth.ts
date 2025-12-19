@@ -25,6 +25,8 @@ export interface UserRegistrationResponse {
   success: boolean;
   user: User;
   message?: string;
+  accessToken?: string;
+  refreshToken?: string;
 }
 
 export interface UserLoginRequest {
