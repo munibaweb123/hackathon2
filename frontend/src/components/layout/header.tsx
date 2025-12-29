@@ -1,8 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
-import { CheckSquare, Bell, Settings, LogOut, User, Menu } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
+import { CheckSquare, Bell, Settings, LogOut, User, Menu, X, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -15,9 +17,19 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { useAuth } from '@/hooks/use-auth';
+import { cn } from '@/lib/utils';
+
+const navItems = [
+  { href: '/tasks', label: 'Tasks', icon: CheckSquare },
+  { href: '/chat', label: 'AI Assistant', icon: MessageSquare },
+  { href: '/reminders', label: 'Reminders', icon: Bell },
+  { href: '/preferences', label: 'Preferences', icon: Settings },
+];
 
 export function Header() {
   const { user, logout, isLoading } = useAuth();
+  const pathname = usePathname();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const initials = user?.name
     ? user.name
@@ -28,6 +40,7 @@ export function Header() {
     : user?.email?.[0]?.toUpperCase() || '?';
 
   return (
+    <>
     <motion.header
       initial={{ y: -20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
@@ -51,6 +64,21 @@ export function Header() {
         <div className="flex-1" />
 
         <div className="flex items-center gap-2">
+          {/* Mobile menu toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle mobile menu"
+          >
+            {mobileMenuOpen ? (
+              <X className="h-5 w-5" />
+            ) : (
+              <Menu className="h-5 w-5" />
+            )}
+          </Button>
+
           <ThemeToggle />
 
           {user && (
@@ -116,5 +144,77 @@ export function Header() {
         </div>
       </div>
     </motion.header>
+
+      {/* Mobile Navigation Menu */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3 }}
+            className="md:hidden border-b bg-background overflow-hidden"
+          >
+            <nav className="container px-4 py-4 space-y-2">
+              {navItems.map((item) => {
+                const isActive = pathname === item.href;
+                const Icon = item.icon;
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={cn(
+                      'flex items-center gap-3 px-4 py-3 rounded-lg transition-all',
+                      isActive
+                        ? 'bg-primary/10 text-primary font-medium'
+                        : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    <Icon className="h-5 w-5" />
+                    {item.label}
+                    {isActive && (
+                      <motion.div
+                        layoutId="mobileActiveIndicator"
+                        className="ml-auto w-2 h-2 rounded-full bg-primary"
+                        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                      />
+                    )}
+                  </Link>
+                );
+              })}
+
+              {/* Mobile user actions */}
+              {user && (
+                <>
+                  <div className="pt-2 mt-2 border-t space-y-2">
+                    <Link
+                      href="/profile"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-muted transition-all text-muted-foreground hover:text-foreground"
+                    >
+                      <User className="h-5 w-5" />
+                      Profile
+                    </Link>
+                    <button
+                      onClick={() => {
+                        setMobileMenuOpen(false);
+                        logout();
+                      }}
+                      disabled={isLoading}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-destructive/10 transition-all text-destructive disabled:opacity-50"
+                    >
+                      <LogOut className="h-5 w-5" />
+                      {isLoading ? 'Signing out...' : 'Sign out'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </nav>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
