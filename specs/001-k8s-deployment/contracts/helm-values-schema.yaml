@@ -1,0 +1,825 @@
+# Helm Values Schema (JSON Schema)
+# Feature: 001-k8s-deployment
+# Validates values.yaml structure and constraints for todo-app Helm chart
+
+$schema: http://json-schema.org/draft-07/schema#
+title: Todo App Helm Chart Values
+description: Configuration values for deploying the Todo Chatbot application to Kubernetes
+type: object
+
+# Required top-level properties
+required:
+  - backend
+  - frontend
+  - database
+
+properties:
+  # Global configuration
+  global:
+    type: object
+    description: Global configuration shared across all components
+    properties:
+      environment:
+        type: string
+        description: Deployment environment
+        enum:
+          - development
+          - staging
+          - production
+        default: production
+      imagePullSecrets:
+        type: array
+        description: Image pull secrets for private registries
+        items:
+          type: object
+          required:
+            - name
+          properties:
+            name:
+              type: string
+
+  # Backend (FastAPI) configuration
+  backend:
+    type: object
+    description: FastAPI backend configuration
+    required:
+      - replicaCount
+      - image
+      - service
+      - resources
+    properties:
+      enabled:
+        type: boolean
+        description: Enable backend deployment
+        default: true
+
+      replicaCount:
+        type: integer
+        description: Number of backend pod replicas
+        minimum: 1
+        maximum: 20
+        default: 3
+
+      image:
+        type: object
+        description: Backend Docker image configuration
+        required:
+          - repository
+          - tag
+        properties:
+          repository:
+            type: string
+            description: Docker image repository
+            pattern: ^[a-z0-9.-]+\/[a-z0-9._-]+$
+            examples:
+              - ghcr.io/yourorg/todo-backend
+              - docker.io/yourorg/todo-backend
+
+          tag:
+            type: string
+            description: Image tag (version)
+            pattern: ^[a-zA-Z0-9._-]+$
+            examples:
+              - v1.0.0
+              - latest
+              - git-abc1234
+
+          pullPolicy:
+            type: string
+            description: Image pull policy
+            enum:
+              - IfNotPresent
+              - Always
+              - Never
+            default: IfNotPresent
+
+      service:
+        type: object
+        description: Backend service configuration
+        required:
+          - type
+          - port
+        properties:
+          type:
+            type: string
+            description: Kubernetes service type
+            enum:
+              - ClusterIP
+              - NodePort
+              - LoadBalancer
+            default: ClusterIP
+
+          port:
+            type: integer
+            description: Service port number
+            minimum: 1
+            maximum: 65535
+            default: 8000
+
+          nodePort:
+            type: integer
+            description: NodePort (if service type is NodePort)
+            minimum: 30000
+            maximum: 32767
+
+      resources:
+        type: object
+        description: CPU and memory resource allocation
+        properties:
+          limits:
+            type: object
+            properties:
+              cpu:
+                type: string
+                description: CPU limit
+                pattern: ^\d+m?$
+                examples:
+                  - 1000m
+                  - "1"
+                  - 500m
+
+              memory:
+                type: string
+                description: Memory limit
+                pattern: ^\d+(Mi|Gi|M|G)$
+                examples:
+                  - 1Gi
+                  - 512Mi
+
+          requests:
+            type: object
+            properties:
+              cpu:
+                type: string
+                description: CPU request
+                pattern: ^\d+m?$
+
+              memory:
+                type: string
+                description: Memory request
+                pattern: ^\d+(Mi|Gi|M|G)$
+
+      autoscaling:
+        type: object
+        description: Horizontal Pod Autoscaler configuration
+        properties:
+          enabled:
+            type: boolean
+            description: Enable HPA
+            default: true
+
+          minReplicas:
+            type: integer
+            description: Minimum number of replicas
+            minimum: 1
+            maximum: 100
+            default: 3
+
+          maxReplicas:
+            type: integer
+            description: Maximum number of replicas
+            minimum: 1
+            maximum: 100
+            default: 10
+
+          targetCPUUtilizationPercentage:
+            type: integer
+            description: Target CPU utilization for scaling
+            minimum: 1
+            maximum: 100
+            default: 70
+
+          targetMemoryUtilizationPercentage:
+            type: integer
+            description: Target memory utilization for scaling
+            minimum: 1
+            maximum: 100
+            default: 80
+
+      podDisruptionBudget:
+        type: object
+        description: Pod Disruption Budget for HA
+        properties:
+          enabled:
+            type: boolean
+            default: true
+
+          minAvailable:
+            type: integer
+            description: Minimum available pods during disruption
+            minimum: 1
+
+          maxUnavailable:
+            type: integer
+            description: Maximum unavailable pods during disruption
+            minimum: 1
+
+      logLevel:
+        type: string
+        description: Application log level
+        enum:
+          - DEBUG
+          - INFO
+          - WARNING
+          - ERROR
+          - CRITICAL
+        default: INFO
+
+      probes:
+        type: object
+        description: Health probe configuration
+        properties:
+          liveness:
+            type: object
+            properties:
+              initialDelaySeconds:
+                type: integer
+                minimum: 0
+                default: 10
+              periodSeconds:
+                type: integer
+                minimum: 1
+                default: 10
+              timeoutSeconds:
+                type: integer
+                minimum: 1
+                default: 3
+              failureThreshold:
+                type: integer
+                minimum: 1
+                default: 3
+
+          readiness:
+            type: object
+            properties:
+              initialDelaySeconds:
+                type: integer
+                minimum: 0
+                default: 5
+              periodSeconds:
+                type: integer
+                minimum: 1
+                default: 5
+              timeoutSeconds:
+                type: integer
+                minimum: 1
+                default: 5
+              failureThreshold:
+                type: integer
+                minimum: 1
+                default: 3
+
+  # Frontend (Next.js) configuration
+  frontend:
+    type: object
+    description: Next.js frontend configuration
+    required:
+      - replicaCount
+      - image
+      - service
+      - resources
+    properties:
+      enabled:
+        type: boolean
+        description: Enable frontend deployment
+        default: true
+
+      replicaCount:
+        type: integer
+        description: Number of frontend pod replicas
+        minimum: 1
+        maximum: 20
+        default: 2
+
+      image:
+        type: object
+        description: Frontend Docker image configuration
+        required:
+          - repository
+          - tag
+        properties:
+          repository:
+            type: string
+            description: Docker image repository
+            pattern: ^[a-z0-9.-]+\/[a-z0-9._-]+$
+
+          tag:
+            type: string
+            description: Image tag (version)
+            pattern: ^[a-zA-Z0-9._-]+$
+
+          pullPolicy:
+            type: string
+            enum:
+              - IfNotPresent
+              - Always
+              - Never
+            default: IfNotPresent
+
+      service:
+        type: object
+        required:
+          - type
+          - port
+        properties:
+          type:
+            type: string
+            enum:
+              - ClusterIP
+              - NodePort
+              - LoadBalancer
+            default: NodePort
+
+          port:
+            type: integer
+            minimum: 1
+            maximum: 65535
+            default: 3000
+
+          nodePort:
+            type: integer
+            minimum: 30000
+            maximum: 32767
+            default: 30000
+
+      resources:
+        type: object
+        properties:
+          limits:
+            type: object
+            properties:
+              cpu:
+                type: string
+                pattern: ^\d+m?$
+              memory:
+                type: string
+                pattern: ^\d+(Mi|Gi|M|G)$
+          requests:
+            type: object
+            properties:
+              cpu:
+                type: string
+                pattern: ^\d+m?$
+              memory:
+                type: string
+                pattern: ^\d+(Mi|Gi|M|G)$
+
+      autoscaling:
+        type: object
+        properties:
+          enabled:
+            type: boolean
+            default: true
+          minReplicas:
+            type: integer
+            minimum: 1
+            default: 2
+          maxReplicas:
+            type: integer
+            minimum: 1
+            default: 8
+          targetCPUUtilizationPercentage:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 70
+
+  # Database (PostgreSQL) configuration
+  database:
+    type: object
+    description: Database configuration (external or internal)
+    required:
+      - external
+      - internal
+    properties:
+      external:
+        type: object
+        description: External managed database configuration
+        properties:
+          enabled:
+            type: boolean
+            description: Use external database
+            default: false
+
+          host:
+            type: string
+            description: Database host
+            pattern: ^[a-z0-9.-]+$
+            examples:
+              - postgres.example.com
+              - 10.0.1.100
+
+          port:
+            type: integer
+            description: Database port
+            minimum: 1
+            maximum: 65535
+            default: 5432
+
+          database:
+            type: string
+            description: Database name
+            pattern: ^[a-z0-9_]+$
+            default: todo_db
+
+          username:
+            type: string
+            description: Database username
+            pattern: ^[a-z0-9_]+$
+            default: todo_user
+
+      internal:
+        type: object
+        description: Internal PostgreSQL deployment configuration
+        properties:
+          enabled:
+            type: boolean
+            description: Deploy PostgreSQL in-cluster
+            default: true
+
+          image:
+            type: string
+            description: PostgreSQL image
+            default: postgres:15-alpine
+
+          persistence:
+            type: object
+            properties:
+              enabled:
+                type: boolean
+                description: Use persistent volume
+                default: true
+
+              size:
+                type: string
+                description: Storage size
+                pattern: ^\d+(Mi|Gi|M|G|Ti|T)$
+                default: 10Gi
+
+              storageClass:
+                type: string
+                description: Storage class name
+                examples:
+                  - standard
+                  - fast-ssd
+                  - hostpath
+
+              accessMode:
+                type: string
+                enum:
+                  - ReadWriteOnce
+                  - ReadOnlyMany
+                  - ReadWriteMany
+                default: ReadWriteOnce
+
+          resources:
+            type: object
+            properties:
+              limits:
+                type: object
+                properties:
+                  cpu:
+                    type: string
+                  memory:
+                    type: string
+              requests:
+                type: object
+                properties:
+                  cpu:
+                    type: string
+                  memory:
+                    type: string
+
+  # Ingress configuration
+  ingress:
+    type: object
+    description: Ingress configuration for external access
+    properties:
+      enabled:
+        type: boolean
+        description: Enable ingress
+        default: false
+
+      className:
+        type: string
+        description: Ingress class name
+        examples:
+          - nginx
+          - traefik
+          - alb
+
+      host:
+        type: string
+        description: Ingress hostname
+        pattern: ^[a-z0-9.-]+$
+        examples:
+          - todo.example.com
+          - todo-dev.local
+
+      annotations:
+        type: object
+        description: Ingress annotations
+        additionalProperties:
+          type: string
+
+      tls:
+        type: array
+        description: TLS configuration
+        items:
+          type: object
+          required:
+            - secretName
+            - hosts
+          properties:
+            secretName:
+              type: string
+              description: Secret name containing TLS certificate
+
+            hosts:
+              type: array
+              description: Hostnames for TLS certificate
+              items:
+                type: string
+                pattern: ^[a-z0-9.-]+$
+
+      certManager:
+        type: object
+        description: cert-manager integration
+        properties:
+          enabled:
+            type: boolean
+            default: false
+
+          clusterIssuer:
+            type: string
+            description: ClusterIssuer name
+            default: letsencrypt-prod
+
+  # NetworkPolicy configuration
+  networkPolicy:
+    type: object
+    description: Network policy for pod-to-pod communication
+    properties:
+      enabled:
+        type: boolean
+        description: Enable network policies
+        default: false
+
+      policyTypes:
+        type: array
+        items:
+          type: string
+          enum:
+            - Ingress
+            - Egress
+
+  # ServiceAccount configuration
+  serviceAccount:
+    type: object
+    description: Kubernetes service account
+    properties:
+      create:
+        type: boolean
+        description: Create service account
+        default: true
+
+      annotations:
+        type: object
+        description: Service account annotations
+        additionalProperties:
+          type: string
+
+      name:
+        type: string
+        description: Service account name (auto-generated if empty)
+
+  # Migration job configuration
+  migration:
+    type: object
+    description: Database migration job
+    properties:
+      enabled:
+        type: boolean
+        description: Run migrations on install/upgrade
+        default: true
+
+      backoffLimit:
+        type: integer
+        description: Number of retries for failed jobs
+        minimum: 0
+        default: 3
+
+      activeDeadlineSeconds:
+        type: integer
+        description: Job timeout in seconds
+        minimum: 1
+        default: 600
+
+  # CronJob configuration
+  cronjob:
+    type: object
+    description: Daily reminder cron job
+    properties:
+      enabled:
+        type: boolean
+        description: Enable daily reminder cron job
+        default: false
+
+      schedule:
+        type: string
+        description: Cron schedule expression
+        pattern: ^(@(annually|yearly|monthly|weekly|daily|hourly|reboot))|(@every (\d+(ns|us|µs|ms|s|m|h))+)|((((\d+,)+\d+|(\d+(\/|-)\d+)|\d+|\*) ?){5,7})$
+        default: "0 8 * * *"
+
+      timeZone:
+        type: string
+        description: Time zone for cron schedule
+        default: UTC
+
+  # Application configuration
+  config:
+    type: object
+    description: Application-specific configuration
+    properties:
+      corsOrigins:
+        type: string
+        description: CORS allowed origins
+        default: "*"
+
+      jwtExpiration:
+        type: integer
+        description: JWT token expiration in seconds
+        minimum: 60
+        default: 3600
+
+      features:
+        type: object
+        description: Feature flags
+        properties:
+          reminders:
+            type: boolean
+            default: true
+
+          aiChatbot:
+            type: boolean
+            default: true
+
+  # Secrets (NEVER commit actual values)
+  secrets:
+    type: object
+    description: Sensitive configuration (provide via --set or external secret management)
+    properties:
+      databaseUrl:
+        type: string
+        description: PostgreSQL connection string
+        pattern: ^postgresql:\/\/[^:]+:[^@]+@[^:]+:\d+\/[a-z0-9_]+$
+        examples:
+          - postgresql://user:pass@host:5432/dbname
+
+      databasePassword:
+        type: string
+        description: Database password
+        minLength: 8
+
+      jwtSecret:
+        type: string
+        description: JWT signing secret
+        minLength: 32
+
+      betterAuthSecret:
+        type: string
+        description: Better Auth secret key
+        minLength: 32
+
+      openaiApiKey:
+        type: string
+        description: OpenAI API key (optional)
+        pattern: ^sk-[a-zA-Z0-9-]+$
+
+# Validation examples
+examples:
+  - # Development configuration
+    global:
+      environment: development
+
+    backend:
+      replicaCount: 1
+      image:
+        repository: ghcr.io/yourorg/todo-backend
+        tag: latest
+        pullPolicy: Always
+      service:
+        type: ClusterIP
+        port: 8000
+      resources:
+        limits:
+          cpu: 500m
+          memory: 512Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+      autoscaling:
+        enabled: false
+      logLevel: DEBUG
+
+    frontend:
+      replicaCount: 1
+      image:
+        repository: ghcr.io/yourorg/todo-frontend
+        tag: latest
+      service:
+        type: NodePort
+        port: 3000
+        nodePort: 30000
+      autoscaling:
+        enabled: false
+
+    database:
+      external:
+        enabled: false
+      internal:
+        enabled: true
+        persistence:
+          enabled: false
+
+    ingress:
+      enabled: false
+
+    networkPolicy:
+      enabled: false
+
+  - # Production configuration
+    global:
+      environment: production
+
+    backend:
+      replicaCount: 3
+      image:
+        repository: ghcr.io/yourorg/todo-backend
+        tag: v1.0.0
+        pullPolicy: IfNotPresent
+      service:
+        type: ClusterIP
+        port: 8000
+      resources:
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+        requests:
+          cpu: 250m
+          memory: 256Mi
+      autoscaling:
+        enabled: true
+        minReplicas: 3
+        maxReplicas: 10
+        targetCPUUtilizationPercentage: 70
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: 2
+      logLevel: INFO
+
+    frontend:
+      replicaCount: 2
+      image:
+        repository: ghcr.io/yourorg/todo-frontend
+        tag: v1.0.0
+      service:
+        type: ClusterIP
+        port: 3000
+      autoscaling:
+        enabled: true
+        minReplicas: 2
+        maxReplicas: 8
+
+    database:
+      external:
+        enabled: true
+        host: postgres.production.example.com
+        port: 5432
+        database: todo_db
+        username: todo_user
+      internal:
+        enabled: false
+
+    ingress:
+      enabled: true
+      className: nginx
+      host: todo.example.com
+      tls:
+        - secretName: todo-tls
+          hosts:
+            - todo.example.com
+      certManager:
+        enabled: true
+        clusterIssuer: letsencrypt-prod
+
+    networkPolicy:
+      enabled: true
+
+    migration:
+      enabled: true
+
+    cronjob:
+      enabled: true
+      schedule: "0 8 * * *"
+      timeZone: UTC

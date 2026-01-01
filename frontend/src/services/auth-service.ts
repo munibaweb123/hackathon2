@@ -44,6 +44,9 @@ authApi.interceptors.request.use(
 );
 
 // Add response interceptor to handle token refresh
+// NOTE: We intentionally do NOT redirect on 401 here.
+// The auth layer (DashboardLayout) handles showing login prompt.
+// Redirecting here causes race conditions during initial page load.
 authApi.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -56,9 +59,9 @@ authApi.interceptors.response.use(
       try {
         const refreshToken = localStorage.getItem('refresh_token');
         if (!refreshToken) {
-          // No refresh token, redirect to login
+          // No refresh token - just clear and let auth layer handle it
           localStorage.removeItem('access_token');
-          window.location.href = '/login';
+          console.warn('[authApi] No refresh token, auth layer will handle redirect');
           return Promise.reject(error);
         }
 
@@ -76,10 +79,10 @@ authApi.interceptors.response.use(
           return authApi(originalRequest);
         }
       } catch (refreshError) {
-        // Refresh failed, clear tokens and redirect to login
+        // Refresh failed, clear tokens - auth layer will handle redirect
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
-        window.location.href = '/login';
+        console.warn('[authApi] Token refresh failed, auth layer will handle redirect');
         return Promise.reject(refreshError);
       }
     }

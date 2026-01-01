@@ -42,15 +42,15 @@ class ApiClient {
     );
 
     // Response interceptor for error handling
+    // NOTE: We intentionally do NOT redirect on 401 here.
+    // The auth layer (DashboardLayout) handles showing login prompt.
+    // Redirecting here causes race conditions during initial page load.
     this.client.interceptors.response.use(
       (response) => response,
       (error: AxiosError) => {
         if (error.response?.status === 401) {
-          // Session expired or invalid - redirect to login
-          // Better Auth will handle cookie cleanup
-          if (typeof window !== 'undefined') {
-            window.location.href = '/login';
-          }
+          // Session expired or invalid - log but DON'T redirect
+          console.warn('[apiClient] 401 Unauthorized - auth layer will handle redirect');
         }
         return Promise.reject(this.formatError(error));
       }

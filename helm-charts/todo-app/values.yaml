@@ -1,0 +1,105 @@
+# Default values for todo-app
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+global:
+  environment: development
+
+backend:
+  replicaCount: 1
+  image:
+    repository: todo-backend
+    tag: v1.0.0
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+  logLevel: INFO
+
+frontend:
+  replicaCount: 1
+  image:
+    repository: todo-frontend
+    tag: v1.0.0
+    pullPolicy: IfNotPresent
+  service:
+    type: NodePort
+    port: 3000
+    nodePort: 30000
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+database:
+  external:
+    enabled: false
+    host: ""
+    port: 5432
+    database: todo_db
+    username: todo_user
+  internal:
+    enabled: true
+    image: postgres:15-alpine
+    persistence:
+      enabled: true
+      size: 1Gi
+      storageClass: standard
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 256Mi
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+  host: todo.local
+  tls: []
+
+networkPolicy:
+  enabled: false
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+migration:
+  enabled: false
+
+config:
+  corsOrigins: "*"
+  jwtExpiration: 3600
+
+# IMPORTANT: These are development defaults
+# For production, use external secret management (External Secrets Operator, Sealed Secrets, etc.)
+secrets:
+  databaseUrl: "postgresql://todo_user:todo_password@todo-postgres:5432/todo_db"
+  databaseUsername: "todo_user"
+  databasePassword: "todo_password"
+  jwtSecret: "dev-jwt-secret-must-be-32-chars-long-min"
+  betterAuthSecret: "dev-better-auth-secret-32-chars-min"

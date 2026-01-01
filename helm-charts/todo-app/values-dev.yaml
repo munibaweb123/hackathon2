@@ -1,0 +1,53 @@
+# Development environment overrides
+
+global:
+  environment: development
+
+backend:
+  replicaCount: 1
+  image:
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  autoscaling:
+    enabled: false
+  logLevel: DEBUG
+
+frontend:
+  replicaCount: 1
+  image:
+    pullPolicy: IfNotPresent
+  service:
+    type: NodePort
+    nodePort: 30000
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  autoscaling:
+    enabled: false
+
+database:
+  internal:
+    enabled: true
+    persistence:
+      enabled: true
+      size: 1Gi
+      storageClass: standard
+
+ingress:
+  enabled: false
+
+networkPolicy:
+  enabled: false
+
+config:
+  corsOrigins: "*"  # Allow all origins in development
