@@ -1,0 +1,922 @@
+# Kubernetes Resource Contracts
+# Feature: 001-k8s-deployment
+# Complete example resource definitions for Todo Chatbot deployment
+
+# This file provides reference implementations of all Kubernetes resources
+# required for deploying the Todo Chatbot application to Minikube or production.
+
+---
+# Frontend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-frontend
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/instance: todo-app-release
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: todo-system
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: todo-app
+      app.kubernetes.io/instance: todo-app-release
+      app.kubernetes.io/component: frontend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      annotations:
+        # Trigger pod restart when config/secrets change
+        checksum/config: "{{ include (print $.Template.BasePath \"/configmap.yaml\") . | sha256sum }}"
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/api/metrics"
+      labels:
+        app.kubernetes.io/name: todo-app
+        app.kubernetes.io/instance: todo-app-release
+        app.kubernetes.io/component: frontend
+        version: v1.0.0
+    spec:
+      serviceAccountName: todo-app
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nextjs
+          image: ghcr.io/yourorg/todo-frontend:v1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            # From ConfigMap
+            - name: NODE_ENV
+              value: production
+            - name: NEXT_PUBLIC_API_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: todo-app-config
+                  key: backend-url
+            - name: NEXT_PUBLIC_APP_VERSION
+              valueFrom:
+                configMapKeyRef:
+                  name: todo-app-config
+                  key: app-version
+            # From Secret
+            - name: BETTER_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: todo-app-secret
+                  key: better-auth-secret
+            - name: BETTER_AUTH_URL
+              value: "https://todo.example.com"
+            - name: BETTER_AUTH_TRUST_HOST
+              value: "true"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: todo-app-secret
+                  key: database-url
+          # Startup probe - for slow-starting applications
+          startupProbe:
+            httpGet:
+              path: /api/health/live
+              port: 3000
+              httpHeaders:
+                - name: User-Agent
+                  value: Kubernetes-StartupProbe
+            failureThreshold: 30
+            periodSeconds: 2
+            timeoutSeconds: 1
+          # Liveness probe - checks if app process is running
+          livenessProbe:
+            httpGet:
+              path: /api/health/live
+              port: 3000
+              httpHeaders:
+                - name: User-Agent
+                  value: Kubernetes-LivenessProbe
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+            successThreshold: 1
+          # Readiness probe - checks if app can serve traffic
+          readinessProbe:
+            httpGet:
+              path: /api/health/ready
+              port: 3000
+              httpHeaders:
+                - name: User-Agent
+                  value: Kubernetes-ReadinessProbe
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: nextjs-cache
+              mountPath: /.next/cache
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: nextjs-cache
+          emptyDir: {}
+      # DNS configuration
+      dnsPolicy: ClusterFirst
+      # Restart policy
+      restartPolicy: Always
+      # Scheduling constraints
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/component
+                      operator: In
+                      values:
+                        - frontend
+                topologyKey: kubernetes.io/hostname
+
+---
+# Backend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-backend
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/instance: todo-app-release
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: todo-system
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: todo-app
+      app.kubernetes.io/instance: todo-app-release
+      app.kubernetes.io/component: backend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  minReadySeconds: 10
+  progressDeadlineSeconds: 600
+  revisionHistoryLimit: 10
+  template:
+    metadata:
+      annotations:
+        checksum/config: "{{ include (print $.Template.BasePath \"/configmap.yaml\") . | sha256sum }}"
+        checksum/secret: "{{ include (print $.Template.BasePath \"/secret.yaml\") . | sha256sum }}"
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+      labels:
+        app.kubernetes.io/name: todo-app
+        app.kubernetes.io/instance: todo-app-release
+        app.kubernetes.io/component: backend
+        version: v1.0.0
+    spec:
+      serviceAccountName: todo-app
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: fastapi
+          image: ghcr.io/yourorg/todo-backend:v1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            # From ConfigMap
+            - name: ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: todo-app-config
+                  key: environment
+            - name: CORS_ORIGINS
+              valueFrom:
+                configMapKeyRef:
+                  name: todo-app-config
+                  key: cors-origins
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: todo-app-config
+                  key: log-level
+            - name: LOG_FORMAT
+              valueFrom:
+                configMapKeyRef:
+                  name: todo-app-config
+                  key: log-format
+            # From Secret
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: todo-app-secret
+                  key: database-url
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: todo-app-secret
+                  key: jwt-secret
+            - name: JWT_ALGORITHM
+              valueFrom:
+                configMapKeyRef:
+                  name: todo-app-config
+                  key: jwt-algorithm
+            - name: JWT_EXPIRATION
+              valueFrom:
+                configMapKeyRef:
+                  name: todo-app-config
+                  key: jwt-expiration
+          # Startup probe - gives app time to initialize
+          startupProbe:
+            httpGet:
+              path: /livez
+              port: 8000
+            failureThreshold: 30
+            periodSeconds: 2
+          # Liveness probe - checks process health
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          # Readiness probe - checks dependencies (DB, etc.)
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+            requests:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app.kubernetes.io/component
+                      operator: In
+                      values:
+                        - backend
+                topologyKey: kubernetes.io/hostname
+
+---
+# PostgreSQL Deployment (StatefulSet in production)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-postgres
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/instance: todo-app-release
+    app.kubernetes.io/version: "15.0"
+    app.kubernetes.io/component: postgres
+    app.kubernetes.io/part-of: todo-system
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: todo-app
+      app.kubernetes.io/instance: todo-app-release
+      app.kubernetes.io/component: postgres
+  strategy:
+    type: Recreate  # Cannot do rolling updates with single DB replica
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: todo-app
+        app.kubernetes.io/instance: todo-app-release
+        app.kubernetes.io/component: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: todo-app-config
+                  key: database-name
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: todo-app-secret
+                  key: database-username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: todo-app-secret
+                  key: database-password
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U $POSTGRES_USER -d $POSTGRES_DB
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U $POSTGRES_USER -d $POSTGRES_DB
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+              subPath: pgdata
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: postgres-data
+
+---
+# Frontend Service (NodePort for Minikube access)
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-frontend
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/instance: todo-app-release
+    app.kubernetes.io/component: frontend
+spec:
+  type: NodePort
+  ports:
+    - port: 3000
+      targetPort: http
+      protocol: TCP
+      name: http
+      nodePort: 30000  # Accessible at http://<minikube-ip>:30000
+  selector:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/instance: todo-app-release
+    app.kubernetes.io/component: frontend
+  sessionAffinity: None
+
+---
+# Backend Service (ClusterIP - internal only)
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-backend
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/instance: todo-app-release
+    app.kubernetes.io/component: backend
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/instance: todo-app-release
+    app.kubernetes.io/component: backend
+  sessionAffinity: None
+
+---
+# PostgreSQL Service (ClusterIP - internal only)
+apiVersion: v1
+kind: Service
+metadata:
+  name: todo-postgres
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/instance: todo-app-release
+    app.kubernetes.io/component: postgres
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: postgres
+      protocol: TCP
+      name: postgres
+  selector:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/instance: todo-app-release
+    app.kubernetes.io/component: postgres
+
+---
+# ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: todo-app-config
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/instance: todo-app-release
+data:
+  # Environment configuration
+  environment: "production"
+  app-version: "1.0.0"
+
+  # CORS configuration
+  cors-origins: "https://todo.example.com"
+
+  # Feature flags
+  feature-reminders-enabled: "true"
+  feature-ai-chatbot-enabled: "true"
+
+  # Service endpoints (internal Kubernetes DNS)
+  backend-url: "http://todo-backend:8000"
+  frontend-url: "http://todo-frontend:3000"
+
+  # Database configuration (non-sensitive)
+  database-host: "todo-postgres"
+  database-port: "5432"
+  database-name: "todo_db"
+
+  # Logging configuration
+  log-level: "INFO"
+  log-format: "json"
+
+  # JWT configuration (non-sensitive)
+  jwt-expiration: "3600"
+  jwt-algorithm: "HS256"
+
+---
+# Secret (PLACEHOLDER VALUES - DO NOT COMMIT REAL SECRETS)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: todo-app-secret
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/instance: todo-app-release
+type: Opaque
+stringData:
+  # Database credentials
+  # IMPORTANT: Replace with actual values using --set or external secret management
+  database-url: "postgresql://todo_user:CHANGE_ME_PASSWORD@todo-postgres:5432/todo_db"
+  database-username: "todo_user"
+  database-password: "CHANGE_ME_PASSWORD"
+
+  # JWT signing key (MUST be 32+ characters)
+  # Generate with: openssl rand -base64 32
+  jwt-secret: "CHANGE_ME_JWT_SECRET_MIN_32_CHARS"
+
+  # Better Auth secrets
+  # Generate with: openssl rand -base64 32
+  better-auth-secret: "CHANGE_ME_BETTER_AUTH_SECRET_32_CHARS"
+  better-auth-trust-host: "true"
+
+---
+# Ingress (with TLS)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: todo-app-ingress
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/instance: todo-app-release
+  annotations:
+    # Ingress class
+    kubernetes.io/ingress.class: nginx
+    # TLS configuration
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # SSL settings
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # Rate limiting
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    # CORS (if needed at ingress level)
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://todo.example.com"
+spec:
+  tls:
+    - hosts:
+        - todo.example.com
+      secretName: todo-tls
+  rules:
+    - host: todo.example.com
+      http:
+        paths:
+          # Backend API routes
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: todo-backend
+                port:
+                  number: 8000
+          # Health check endpoints
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: todo-backend
+                port:
+                  number: 8000
+          - path: /livez
+            pathType: Prefix
+            backend:
+              service:
+                name: todo-backend
+                port:
+                  number: 8000
+          - path: /readyz
+            pathType: Prefix
+            backend:
+              service:
+                name: todo-backend
+                port:
+                  number: 8000
+          # Frontend (all other routes)
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: todo-frontend
+                port:
+                  number: 3000
+
+---
+# PersistentVolumeClaim for PostgreSQL
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/instance: todo-app-release
+    app.kubernetes.io/component: postgres
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: standard  # Use "hostpath" for Minikube
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+# HorizontalPodAutoscaler for Backend
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: todo-backend-hpa
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/instance: todo-app-release
+    app.kubernetes.io/component: backend
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: todo-backend
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 15
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 15
+        - type: Pods
+          value: 4
+          periodSeconds: 15
+      selectPolicy: Max
+
+---
+# HorizontalPodAutoscaler for Frontend
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: todo-frontend-hpa
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/instance: todo-app-release
+    app.kubernetes.io/component: frontend
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: todo-frontend
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+---
+# ServiceAccount
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: todo-app
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/instance: todo-app-release
+automountServiceAccountToken: true
+
+---
+# PodDisruptionBudget for Backend
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: todo-backend-pdb
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/instance: todo-app-release
+    app.kubernetes.io/component: backend
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: todo-app
+      app.kubernetes.io/instance: todo-app-release
+      app.kubernetes.io/component: backend
+
+---
+# NetworkPolicy for Backend
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: todo-backend-netpol
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/component: backend
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: todo-app
+      app.kubernetes.io/component: backend
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow traffic from frontend
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: todo-app
+              app.kubernetes.io/component: frontend
+      ports:
+        - protocol: TCP
+          port: 8000
+    # Allow traffic from ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    # Allow DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+        - podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow database access
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: todo-app
+              app.kubernetes.io/component: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    # Allow HTTPS for external APIs
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+
+---
+# Job for Database Migrations
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: todo-db-migration
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/instance: todo-app-release
+    app.kubernetes.io/component: migration
+  annotations:
+    # Helm hooks for running before deployment
+    "helm.sh/hook": pre-upgrade,pre-install
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: todo-app
+        app.kubernetes.io/component: migration
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: todo-app
+      containers:
+        - name: migration
+          image: ghcr.io/yourorg/todo-backend:v1.0.0
+          command:
+            - alembic
+            - upgrade
+            - head
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: todo-app-secret
+                  key: database-url
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+
+---
+# CronJob for Daily Reminders
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: todo-daily-reminders
+  namespace: default
+  labels:
+    app.kubernetes.io/name: todo-app
+    app.kubernetes.io/instance: todo-app-release
+    app.kubernetes.io/component: cronjob
+spec:
+  # Run every day at 8:00 AM UTC
+  schedule: "0 8 * * *"
+  timeZone: "UTC"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: todo-app
+            app.kubernetes.io/component: cronjob
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: todo-app
+          containers:
+            - name: send-reminders
+              image: ghcr.io/yourorg/todo-backend:v1.0.0
+              command:
+                - python
+                - -m
+                - app.tasks.send_daily_reminders
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: todo-app-secret
+                      key: database-url
+                - name: LOG_LEVEL
+                  value: INFO
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 100m
+                  memory: 128Mi

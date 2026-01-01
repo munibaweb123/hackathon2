@@ -1,51 +1,36 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/layout/header';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Footer } from '@/components/layout/footer';
-import { useAuth } from '@/hooks/use-auth';
+import { useSession } from '@/lib/auth-client';
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { isAuthenticated, isLoading, user, error } = useAuth();
-  const router = useRouter();
-  const [shouldRedirect, setShouldRedirect] = useState(false);
+  // Use useSession directly to avoid any abstraction issues
+  const { data: session, isPending } = useSession();
+
+  const isAuthenticated = !!session?.user;
+  const user = session?.user;
 
   // Debug logging
   useEffect(() => {
-    console.log('[DashboardLayout] Auth state:', {
+    console.log('[DashboardLayout] Direct session check:', {
+      session: session,
+      user: user,
+      isPending,
       isAuthenticated,
-      isLoading,
-      user: user ? { id: user.id, email: user.email } : null,
-      error: error?.message || null,
     });
-  }, [isAuthenticated, isLoading, user, error]);
+  }, [session, user, isPending, isAuthenticated]);
 
-  // Handle redirect after loading completes
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      console.log('[DashboardLayout] Not authenticated after loading, will redirect...');
-      // Add delay before redirecting to avoid race condition
-      const timer = setTimeout(() => {
-        if (!isAuthenticated) {
-          console.log('[DashboardLayout] Redirecting to login...');
-          setShouldRedirect(true);
-          router.push('/login');
-        }
-      }, 2000); // Wait 2 seconds before redirecting
-
-      return () => clearTimeout(timer);
-    }
-  }, [isAuthenticated, isLoading, router]);
-
-  // Show loading state
-  if (isLoading) {
+  // Show loading while checking auth
+  if (isPending) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <motion.div
@@ -64,30 +49,23 @@ export default function DashboardLayout({
     );
   }
 
-  // If not authenticated and should redirect, show loading
-  if (!isAuthenticated && !shouldRedirect) {
+  // If NOT authenticated, show login prompt (no automatic redirect)
+  if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="flex flex-col items-center gap-4"
-        >
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-            className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full"
-          />
-          <p className="text-muted-foreground text-sm">Verifying session...</p>
-        </motion.div>
+        <div className="text-center p-8">
+          <h1 className="text-2xl font-bold mb-4">Please Log In</h1>
+          <p className="text-muted-foreground mb-4">You need to be logged in to access this page.</p>
+          <Link href="/login" className="text-primary hover:underline">
+            Go to Login
+          </Link>
+        </div>
       </div>
     );
   }
 
-  // If redirecting, show nothing
-  if (shouldRedirect) {
-    return null;
-  }
+  // If authenticated, show dashboard
+  console.log('[DashboardLayout] Authenticated! Showing dashboard for:', user?.email);
 
   return (
     <div className="min-h-screen flex flex-col bg-background">

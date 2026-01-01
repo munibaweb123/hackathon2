@@ -1,0 +1,58 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your release is named {{ .Release.Name }}.
+
+To learn more about the release, try:
+
+  $ helm status {{ .Release.Name }}
+  $ helm get all {{ .Release.Name }}
+
+===================================
+Todo App has been deployed!
+===================================
+
+1. Get the application URL:
+
+{{- if eq .Values.frontend.service.type "NodePort" }}
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "todo-app.fullname" . }}-frontend)
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo "Frontend URL: http://$NODE_IP:$NODE_PORT"
+
+  Or using Minikube:
+  minikube service {{ include "todo-app.fullname" . }}-frontend -n {{ .Release.Namespace }}
+
+{{- else if eq .Values.frontend.service.type "LoadBalancer" }}
+  NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+  You can watch the status by running:
+  kubectl get --namespace {{ .Release.Namespace }} svc -w {{ include "todo-app.fullname" . }}-frontend
+
+  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "todo-app.fullname" . }}-frontend --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  echo "Frontend URL: http://$SERVICE_IP:{{ .Values.frontend.service.port }}"
+
+{{- else }}
+  kubectl port-forward --namespace {{ .Release.Namespace }} svc/{{ include "todo-app.fullname" . }}-frontend 3000:{{ .Values.frontend.service.port }}
+  echo "Frontend URL: http://localhost:3000"
+{{- end }}
+
+2. Check the deployment status:
+
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "todo-app.name" . }}
+
+3. View logs:
+
+  # Backend logs
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=backend -f
+
+  # Frontend logs
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/component=frontend -f
+
+4. Run health checks:
+
+  kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "todo-app.fullname" . }}-backend 8000:8000
+  curl http://localhost:8000/livez
+  curl http://localhost:8000/readyz
+
+Environment: {{ .Values.global.environment }}
+Backend replicas: {{ .Values.backend.replicaCount }}
+Frontend replicas: {{ .Values.frontend.replicaCount }}
+Database: {{ if .Values.database.internal.enabled }}Internal PostgreSQL{{ else }}External{{ end }}

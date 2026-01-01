@@ -2,7 +2,7 @@
 
 import { useCallback, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession, signIn, signUp, signOut, getSession } from '@/lib/auth-client';
+import { useSession, signIn, signUp, signOut, getSession, clearStoredToken } from '@/lib/auth-client';
 import { clearCachedToken } from '@/services/auth/api-client';
 import type { User, LoginInput, RegisterInput } from '@/types';
 
@@ -14,9 +14,12 @@ export function useAuth() {
   // Debug logging for session state
   useEffect(() => {
     console.log('[useAuth] Session state:', {
-      session: session ? { user: session.user?.email, hasSession: !!session.session } : null,
+      sessionRaw: session,
+      sessionUser: session?.user,
+      sessionSession: session?.session,
       isPending,
       error: error?.message || null,
+      isAuthenticated: !!session?.user,
     });
   }, [session, isPending, error]);
 
@@ -27,6 +30,15 @@ export function useAuth() {
       const result = await signIn.email({
         email: input.email,
         password: input.password,
+      }, {
+        // Capture bearer token from response headers
+        onSuccess: (ctx) => {
+          const authToken = ctx.response.headers.get('set-auth-token');
+          if (authToken) {
+            console.log('[useAuth] Storing bearer token from login response');
+            localStorage.setItem('bearer_token', authToken);
+          }
+        }
       });
 
       console.log('[useAuth] signIn.email result:', {
@@ -39,17 +51,31 @@ export function useAuth() {
         throw new Error(result.error.message || 'Login failed');
       }
 
-      console.log('[useAuth] Login successful, waiting for session...');
+      console.log('[useAuth] Login successful, fetching JWT token...');
 
-      // Wait for session to be established
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Fetch and store JWT token for API calls
+      try {
+        const { getJwtToken } = await import('@/lib/auth-client');
+        const token = await getJwtToken();
+        if (token) {
+          localStorage.setItem('bearer_token', token);
+          console.log('[useAuth] JWT token stored successfully');
+        } else {
+          console.warn('[useAuth] No JWT token returned, will use cookie auth');
+        }
+      } catch (tokenError) {
+        console.warn('[useAuth] Failed to get JWT token:', tokenError);
+      }
 
-      // Refetch session
+      // Wait for session to be fully established
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Refetch session to ensure it's available
       await refetch();
 
-      console.log('[useAuth] Redirecting to /tasks...');
+      console.log('[useAuth] Session confirmed, redirecting to /tasks...');
 
-      // Use window.location for more reliable redirect
+      // Use window.location for reliable redirect
       window.location.href = '/tasks';
 
       return result;
@@ -69,6 +95,15 @@ export function useAuth() {
         email: input.email,
         password: input.password,
         name: input.name || '',
+      }, {
+        // Capture bearer token from response headers
+        onSuccess: (ctx) => {
+          const authToken = ctx.response.headers.get('set-auth-token');
+          if (authToken) {
+            console.log('[useAuth] Storing bearer token from register response');
+            localStorage.setItem('bearer_token', authToken);
+          }
+        }
       });
 
       console.log('[useAuth] signUp.email result:', {
@@ -81,17 +116,31 @@ export function useAuth() {
         throw new Error(result.error.message || 'Registration failed');
       }
 
-      console.log('[useAuth] Registration successful, waiting for session...');
+      console.log('[useAuth] Registration successful, fetching JWT token...');
 
-      // Wait for session to be established
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Fetch and store JWT token for API calls
+      try {
+        const { getJwtToken } = await import('@/lib/auth-client');
+        const token = await getJwtToken();
+        if (token) {
+          localStorage.setItem('bearer_token', token);
+          console.log('[useAuth] JWT token stored successfully');
+        } else {
+          console.warn('[useAuth] No JWT token returned, will use cookie auth');
+        }
+      } catch (tokenError) {
+        console.warn('[useAuth] Failed to get JWT token:', tokenError);
+      }
 
-      // Refetch session
+      // Wait for session to be fully established
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Refetch session to ensure it's available
       await refetch();
 
-      console.log('[useAuth] Redirecting to /tasks...');
+      console.log('[useAuth] Session confirmed, redirecting to /tasks...');
 
-      // Use window.location for more reliable redirect
+      // Use window.location for reliable redirect
       window.location.href = '/tasks';
 
       return result;
@@ -106,8 +155,9 @@ export function useAuth() {
   const logout = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Clear cached JWT token
+      // Clear cached JWT token and bearer token
       clearCachedToken();
+      clearStoredToken();
       await signOut();
       router.push('/login');
       router.refresh();

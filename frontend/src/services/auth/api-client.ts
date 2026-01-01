@@ -107,19 +107,21 @@ class JwtApiClient {
     );
 
     // Response interceptor for error handling
+    // NOTE: We intentionally do NOT redirect on 401 here.
+    // The auth layer (DashboardLayout) handles showing login prompt.
+    // Redirecting here causes race conditions during initial page load.
     this.client.interceptors.response.use(
       (response) => response,
       (error: AxiosError) => {
         if (error.response?.status === 401) {
           // Unauthorized - token invalid or expired
-          // Clear cached token and redirect to login
+          // Clear cached token but DON'T redirect - let auth layer handle it
           clearCachedToken();
           if (typeof window !== 'undefined') {
             localStorage.removeItem('jwt_token');
             sessionStorage.removeItem('jwt_token');
-            // Redirect to login page
-            window.location.href = '/login';
           }
+          console.warn('[jwtApiClient] 401 Unauthorized - token cleared, auth layer will handle redirect');
         } else if (error.response?.status === 403) {
           // Forbidden - user doesn't have access to this resource
           console.error('Access forbidden:', error.response.data);

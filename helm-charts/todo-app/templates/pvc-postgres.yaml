@@ -1,0 +1,18 @@
+{{- if and .Values.database.internal.enabled .Values.database.internal.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "todo-app.fullname" . }}-postgres
+  labels:
+    {{- include "todo-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if .Values.database.internal.persistence.storageClass }}
+  storageClassName: {{ .Values.database.internal.persistence.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.database.internal.persistence.size }}
+{{- end }}

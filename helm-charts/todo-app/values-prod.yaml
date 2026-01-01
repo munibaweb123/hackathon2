@@ -1,0 +1,90 @@
+# Production environment overrides
+
+global:
+  environment: production
+
+backend:
+  replicaCount: 3
+  image:
+    pullPolicy: IfNotPresent
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+  logLevel: WARNING
+
+frontend:
+  replicaCount: 3
+  image:
+    pullPolicy: IfNotPresent
+  service:
+    type: LoadBalancer  # Use LoadBalancer in production
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 250m
+      memory: 256Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 70
+
+database:
+  # Use external managed database in production
+  external:
+    enabled: true
+    host: postgres.production.example.com
+    port: 5432
+    database: todo_db
+    username: todo_user
+  internal:
+    enabled: false
+
+ingress:
+  enabled: true
+  className: nginx
+  host: todo.example.com
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  tls:
+    - secretName: todo-tls
+      hosts:
+        - todo.example.com
+
+networkPolicy:
+  enabled: true
+
+serviceAccount:
+  create: true
+  annotations:
+    # Add cloud provider annotations for IAM roles
+    # eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT-ID:role/todo-app-role
+    # iam.gke.io/gcp-service-account: todo-app@PROJECT-ID.iam.gserviceaccount.com
+
+config:
+  corsOrigins: "https://todo.example.com"
+
+# IMPORTANT: DO NOT hardcode production secrets in values files
+# Use external secret management:
+# - External Secrets Operator (AWS Secrets Manager, Google Secret Manager, etc.)
+# - Sealed Secrets
+# - HashiCorp Vault
+secrets:
+  # Override these via --set flags or external secret management
+  databaseUrl: ""  # Set via external secrets
+  databaseUsername: ""  # Set via external secrets
+  databasePassword: ""  # Set via external secrets
+  jwtSecret: ""  # Set via external secrets
+  betterAuthSecret: ""  # Set via external secrets

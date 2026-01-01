@@ -313,6 +313,9 @@ See `.specify/memory/constitution.md` for code quality, testing, performance, se
 - SQLite (development), PostgreSQL (production via docker-compose) (001-hackathon-todo-monorepo)
 - Python 3.13+ (backend), JavaScript/TypeScript (frontend) + FastAPI, OpenAI Agents SDK, Official MCP SDK, SQLModel, Better Auth (001-ai-chatbot-mcp)
 - PostgreSQL (production via Neon Serverless), SQLite (development) (001-ai-chatbot-mcp)
+- Node.js 20+ (frontend), Python 3.13+ (backend), Bash (automation) + Docker Desktop 4.53+, Minikube, kubectl, Helm 3.x, kubectl-ai (optional), Kagent (optional), Docker AI Agent/Gordon (optional) (001-k8s-deployment)
+- PostgreSQL (Kubernetes deployment with PersistentVolumeClaim), Local Minikube persistent volumes (001-k8s-deployment)
 
 ## Recent Changes
 - 001-todo-console-app: Added Python 3.13+ + None (standard library only - in-memory storage)
+- 001-k8s-deployment: Added Kubernetes deployment infrastructure with Docker, Minikube, Helm, and AI-assisted DevOps tools

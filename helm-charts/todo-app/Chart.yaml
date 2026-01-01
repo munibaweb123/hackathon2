@@ -1,0 +1,21 @@
+apiVersion: v2
+name: todo-app
+version: 1.0.0
+appVersion: v1.0.0
+description: Todo Chatbot application with FastAPI backend and Next.js frontend
+type: application
+kubeVersion: ">=1.27.0"
+keywords:
+  - todo
+  - chatbot
+  - fastapi
+  - nextjs
+  - kubernetes
+  - helm
+maintainers:
+  - name: DevOps Team
+    email: devops@example.com
+home: https://github.com/yourorg/todo-app
+sources:
+  - https://github.com/yourorg/todo-app
+icon: https://raw.githubusercontent.com/kubernetes/kubernetes/master/logo/logo.png

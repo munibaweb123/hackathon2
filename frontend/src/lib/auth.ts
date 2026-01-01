@@ -36,8 +36,16 @@ declare global {
   var pool: Pool | undefined;
 }
 
+// Determine if we're running over HTTPS - check at runtime
+const getBaseUrl = () => process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_BETTER_AUTH_URL || 'http://localhost:3000';
+
+// Force non-secure cookies for local/HTTP development
+// In production with HTTPS, set BETTER_AUTH_SECURE_COOKIES=true
+const useSecureCookies = process.env.BETTER_AUTH_SECURE_COOKIES === 'true';
+
 export const auth = betterAuth({
   database: pool,
+  baseURL: getBaseUrl(),
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,
@@ -51,10 +59,20 @@ export const auth = betterAuth({
     },
   },
   trustedOrigins: [
+    'http://localhost:3000',
+    'http://localhost:8000',
     process.env.NEXT_PUBLIC_BETTER_AUTH_URL || 'http://localhost:3000',
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
-    process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000', // Frontend origin
+    process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000',
   ],
+  advanced: {
+    // Explicitly disable secure cookies for HTTP (local K8s development)
+    useSecureCookies: useSecureCookies,
+    // Cross-subdomain cookies disabled for localhost
+    crossSubDomainCookies: {
+      enabled: false,
+    },
+  },
   plugins: [
     nextCookies(),
     jwt(),  // Uses EdDSA by default, backend fetches JWKS to verify

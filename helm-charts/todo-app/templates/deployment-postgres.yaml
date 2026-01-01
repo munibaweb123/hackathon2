@@ -1,0 +1,78 @@
+{{- if .Values.database.internal.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "todo-app.fullname" . }}-postgres
+  labels:
+    {{- include "todo-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # Only one replica allowed with PVC
+  selector:
+    matchLabels:
+      {{- include "todo-app.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: postgres
+  template:
+    metadata:
+      labels:
+        {{- include "todo-app.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: postgres
+    spec:
+      serviceAccountName: {{ include "todo-app.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        fsGroup: 999
+      containers:
+        - name: postgres
+          image: {{ .Values.database.internal.image }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: postgres
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_DB
+              value: "todo_db"
+            - name: POSTGRES_USER
+              value: {{ .Values.secrets.databaseUsername | quote }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.secrets.databasePassword | quote }}
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U {{ .Values.secrets.databaseUsername }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U {{ .Values.secrets.databaseUsername }}
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.database.internal.resources | nindent 12 }}
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: postgres-storage
+          {{- if .Values.database.internal.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "todo-app.fullname" . }}-postgres
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+{{- end }}
