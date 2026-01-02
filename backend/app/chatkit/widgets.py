@@ -1,8 +1,6 @@
 """Widget factories and components for ChatKit implementation in the todo application."""
 
-from typing import List, Optional, Union, Dict, Any
-from pydantic import BaseModel
-from .types import Widget as BaseWidget, WidgetType, TaskWidget, TaskListWidget, ButtonWidget
+from typing import List, Optional, Dict, Any
 from ..models.task import Task
 
 
