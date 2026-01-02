@@ -276,7 +276,11 @@ class JwtApiClient {
 
   // Chat API methods
   async chatWithBot(userId: string, message: string): Promise<any> {
-    const response = await this.client.post(`/api/chat/${userId}`, { message });
+    const response = await this.client.post(`/api/chat/chatkit`, {
+      message,
+      user_id: userId,
+      thread_id: `thread-${Date.now()}`
+    });
     return response.data;
   }
 }
