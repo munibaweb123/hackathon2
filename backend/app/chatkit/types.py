@@ -103,3 +103,34 @@ class ChatKitActionResponse(BaseModel):
     status: str
     thread_id: str
     result: Optional[Dict[str, Any]] = None
+
+
+class ThreadMetadata(BaseModel):
+    """Metadata for a conversation thread."""
+    thread_id: str
+    user_id: str
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class ThreadStreamEvent(BaseModel):
+    """Event streamed during thread processing."""
+    type: str
+    data: Any
+    timestamp: Optional[str] = None
+
+
+class UserMessageItem(BaseModel):
+    """Represents a user message item."""
+    id: str
+    role: str = "user"
+    content: str
+    timestamp: Optional[str] = None
+
+
+class SimpleItem(BaseModel):
+    """Simple representation of a chat item."""
+    id: str
+    role: str
+    content: str
