@@ -1,13 +1,13 @@
 """Message service for handling business logic related to conversation messages."""
 from typing import List, Optional
-from sqlmodel import select
+from sqlmodel import select, Session
 from uuid import UUID
 from datetime import datetime, timedelta
 from ..models.chatkit_message import Message
-from ..core.database import AsyncSession, engine
+from ..core.database import engine
 
 
-async def get_messages_by_thread_id(thread_id: UUID, limit: int = 20, offset: int = 0) -> List[Message]:
+def get_messages_by_thread_id(thread_id: UUID, limit: int = 20, offset: int = 0) -> List[Message]:
     """
     Retrieve messages for a specific thread.
 
@@ -19,14 +19,14 @@ async def get_messages_by_thread_id(thread_id: UUID, limit: int = 20, offset: in
     Returns:
         List of Message objects for the thread
     """
-    async with AsyncSession(engine) as session:
+    with Session(engine) as session:
         statement = select(Message).where(Message.thread_id == thread_id).order_by(Message.created_at.desc()).offset(offset).limit(limit)
-        result = await session.execute(statement)
-        messages = result.scalars().all()
+        result = session.exec(statement)
+        messages = list(result.all())
         return messages
 
 
-async def get_recent_messages_by_thread_id(thread_id: UUID, hours: int = 24, limit: int = 20) -> List[Message]:
+def get_recent_messages_by_thread_id(thread_id: UUID, hours: int = 24, limit: int = 20) -> List[Message]:
     """
     Retrieve recent messages for a specific thread within a time window.
 
@@ -38,20 +38,19 @@ async def get_recent_messages_by_thread_id(thread_id: UUID, hours: int = 24, lim
     Returns:
         List of Message objects for the thread within the time window
     """
-    from datetime import datetime, timedelta
     since_time = datetime.utcnow() - timedelta(hours=hours)
 
-    async with AsyncSession(engine) as session:
+    with Session(engine) as session:
         statement = select(Message).where(
             Message.thread_id == thread_id,
             Message.created_at >= since_time
         ).order_by(Message.created_at.desc()).limit(limit)
-        result = await session.execute(statement)
-        messages = result.scalars().all()
+        result = session.exec(statement)
+        messages = list(result.all())
         return messages
 
 
-async def create_message(content: str, thread_id: UUID, user_id: str, role: str = "user") -> Message:
+def create_message(content: str, thread_id: UUID, user_id: str, role: str = "user") -> Message:
     """
     Create a new message in a thread.
 
@@ -64,7 +63,7 @@ async def create_message(content: str, thread_id: UUID, user_id: str, role: str 
     Returns:
         Created Message object
     """
-    async with AsyncSession(engine) as session:
+    with Session(engine) as session:
         message = Message(
             content=content,
             thread_id=thread_id,
@@ -72,12 +71,12 @@ async def create_message(content: str, thread_id: UUID, user_id: str, role: str 
             role=role
         )
         session.add(message)
-        await session.commit()
-        await session.refresh(message)
+        session.commit()
+        session.refresh(message)
         return message
 
 
-async def get_conversation_context(thread_id: UUID, limit: int = 20) -> List[Message]:
+def get_conversation_context(thread_id: UUID, limit: int = 20) -> List[Message]:
     """
     Get the most recent messages in a thread for conversation context.
 
@@ -88,10 +87,10 @@ async def get_conversation_context(thread_id: UUID, limit: int = 20) -> List[Mes
     Returns:
         List of Message objects ordered from newest to oldest
     """
-    return await get_messages_by_thread_id(thread_id, limit=limit)
+    return get_messages_by_thread_id(thread_id, limit=limit)
 
 
-async def get_paginated_messages_by_thread_id(thread_id: UUID, limit: int = 20, offset: int = 0) -> List[Message]:
+def get_paginated_messages_by_thread_id(thread_id: UUID, limit: int = 20, offset: int = 0) -> List[Message]:
     """
     Retrieve messages for a specific thread with pagination support.
 
@@ -103,10 +102,10 @@ async def get_paginated_messages_by_thread_id(thread_id: UUID, limit: int = 20, 
     Returns:
         List of Message objects for the thread
     """
-    return await get_messages_by_thread_id(thread_id, limit=limit, offset=offset)
+    return get_messages_by_thread_id(thread_id, limit=limit, offset=offset)
 
 
-async def delete_message(message_id: UUID) -> bool:
+def delete_message(message_id: UUID) -> bool:
     """
     Delete a message by its ID.
 
@@ -116,20 +115,20 @@ async def delete_message(message_id: UUID) -> bool:
     Returns:
         True if message was deleted, False if not found
     """
-    async with AsyncSession(engine) as session:
+    with Session(engine) as session:
         statement = select(Message).where(Message.id == message_id)
-        result = await session.execute(statement)
-        message = result.scalar_one_or_none()
+        result = session.exec(statement)
+        message = result.first()
 
         if not message:
             return False
 
-        await session.delete(message)
-        await session.commit()
+        session.delete(message)
+        session.commit()
         return True
 
 
-async def update_message(message_id: UUID, **updates) -> Optional[Message]:
+def update_message(message_id: UUID, **updates) -> Optional[Message]:
     """
     Update a message by its ID.
 
@@ -140,10 +139,10 @@ async def update_message(message_id: UUID, **updates) -> Optional[Message]:
     Returns:
         Updated Message object if successful, None if not found
     """
-    async with AsyncSession(engine) as session:
+    with Session(engine) as session:
         statement = select(Message).where(Message.id == message_id)
-        result = await session.execute(statement)
-        message = result.scalar_one_or_none()
+        result = session.exec(statement)
+        message = result.first()
 
         if not message:
             return None
@@ -153,6 +152,6 @@ async def update_message(message_id: UUID, **updates) -> Optional[Message]:
             if hasattr(message, field):
                 setattr(message, field, value)
 
-        await session.commit()
-        await session.refresh(message)
+        session.commit()
+        session.refresh(message)
         return message
