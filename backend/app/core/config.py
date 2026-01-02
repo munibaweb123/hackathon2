@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     OPENAI_DEFAULT_MODEL: str = "gpt-4o-mini"
     VERBOSE_AI_LOGGING: bool = False
 
+    # ChatKit Configuration
+    CHATKIT_DOMAIN_KEY: str = ""
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
