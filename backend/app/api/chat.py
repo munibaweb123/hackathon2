@@ -1,14 +1,116 @@
-"""Chat API endpoints for AI Chatbot feature."""
+"""Chat API endpoints for AI Chatbot feature with ChatKit integration."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse, Response
 from typing import Dict, Any
 from app.auth.dependencies import get_current_user
 from app.models.user import User
 from app.agents.core.todo_agent import run_chatbot_agent
+from app.chatkit.server import get_chatkit_server
+from app.chatkit.server_interface import StreamingResult
 
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
+
+# =============================================================================
+# ChatKit API Endpoint (New - Recommended)
+# =============================================================================
+
+@router.post("/chatkit")
+async def chatkit_api(
+    request: Request,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+) -> Response:
+    """
+    Main ChatKit API endpoint for streaming chat with widgets.
+
+    This endpoint handles all ChatKit operations including:
+    - Creating/managing threads
+    - Processing user messages
+    - Streaming assistant responses with widgets
+
+    Args:
+        request: The incoming HTTP request with ChatKit payload
+        current_user: Authenticated user from JWT
+
+    Returns:
+        StreamingResponse for SSE events or JSON response
+    """
+    try:
+        # Get user_id from authenticated user
+        user_id = current_user.get('user_id')
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID not found in token")
+
+        # Create context with user information
+        context = {
+            "user_id": user_id,
+            "user_info": current_user.get("user_info", {}),
+        }
+
+        # Get the ChatKit server instance
+        server = get_chatkit_server()
+
+        # Process the request body
+        body = await request.body()
+
+        # Process through ChatKit server
+        result = await server.process(body, context=context)
+
+        # Return appropriate response type
+        if isinstance(result, StreamingResult):
+            async def generate():
+                async for chunk in result:
+                    yield chunk
+
+            return StreamingResponse(
+                generate(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no",  # Disable nginx buffering
+                }
+            )
+
+        return Response(
+            content=result.json if hasattr(result, 'json') else str(result),
+            media_type="application/json"
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing ChatKit request: {str(e)}"
+        )
+
+
+@router.post("/chatkit/upload")
+async def chatkit_upload(
+    request: Request,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """
+    Handle file uploads for ChatKit.
+
+    Args:
+        request: The incoming HTTP request with file data
+        current_user: Authenticated user from JWT
+
+    Returns:
+        Upload result with file URL
+    """
+    # For now, return a placeholder - implement file upload logic as needed
+    raise HTTPException(
+        status_code=501,
+        detail="File upload not implemented yet"
+    )
+
+
+# =============================================================================
+# Legacy Chat API Endpoints (Backwards Compatible)
+# =============================================================================
 
 @router.post("/{user_id}")
 async def chat_with_bot(
@@ -17,7 +119,9 @@ async def chat_with_bot(
     current_user: User = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
-    Send message to AI chatbot and get response.
+    Send message to AI chatbot and get response (Legacy endpoint).
+
+    Note: Consider migrating to /chat/chatkit for widget support.
 
     Args:
         user_id: User identifier

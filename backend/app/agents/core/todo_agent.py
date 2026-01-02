@@ -146,7 +146,29 @@ async def run_chatbot_agent(user_text: str, user_id: str, conversation_id: Optio
             f"If they want to add a task, call add_task with user_id='{user_id}' and the title. "
             f"If they want to complete a task, call complete_task with user_id='{user_id}' and task_id. "
             f"If they want to delete or update a task, call the respective functions with user_id='{user_id}'. "
-            f"If you need to disambiguate which task, ask for clarification but never ask for user_id."
+            f"If you need to disambiguate which task, ask for clarification but never ask for user_id.\n\n"
+
+            # Add specific instructions for natural language patterns
+            f"Handle these specific patterns:\n"
+            f"- 'Add a task to [title]' or 'Add task [title]' -> call add_task\n"
+            f"- 'Show me all my tasks' or 'List tasks' -> call list_tasks with status='all'\n"
+            f"- 'What's pending?' or 'Show pending tasks' -> call list_tasks with status='pending'\n"
+            f"- 'What have I completed?' or 'Show completed tasks' -> call list_tasks with status='completed'\n"
+            f"- 'Mark task [id] as complete' or 'Complete task [id]' -> call complete_task\n"
+            f"- 'Delete task [id]' or 'Remove task [id]' -> call delete_task\n"
+            f"- 'Change task [id] to [new title]' or 'Update task [id] to [new title]' -> call update_task\n"
+            f"- 'Add description [description] of task [title]' -> call update_task with description\n"
+            f"- 'Add description to id:[id] [description]' -> call update_task with description\n"
+            f"- 'Task [id]' -> call list_tasks to show specific task details\n"
+            f"- 'I need to remember to [task]' -> call add_task\n"
+            f"- 'Update task [id] with description [description]' -> call update_task\n"
+            f"- 'Add note [note] to task [id]' -> call update_task with description\n"
+            f"- 'Set description of task [id] to [description]' -> call update_task\n\n"
+
+            f"When updating tasks with descriptions, preserve existing title if not specified in the update. "
+            f"Always include the user_id in function calls automatically. "
+            f"If a user provides just a task number without context, assume they want to see details about that task. "
+            f"If you can't determine the intent, call list_tasks to provide context before other operations."
         )
     }
 
