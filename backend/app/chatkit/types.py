@@ -77,3 +77,29 @@ class ConversationState(BaseModel):
     context: Dict[str, Any]
     last_message_timestamp: Optional[str] = None
     active: bool = True
+
+
+class ChatKitRequest(BaseModel):
+    """Schema for ChatKit respond requests."""
+    thread_id: str
+    input: str
+
+
+class ChatKitActionRequest(BaseModel):
+    """Schema for ChatKit action requests."""
+    thread_id: str
+    action: Dict[str, Any]
+
+
+class ChatKitResponse(BaseModel):
+    """Schema for ChatKit respond responses."""
+    status: str
+    thread_id: str
+    message: Optional[str] = None
+
+
+class ChatKitActionResponse(BaseModel):
+    """Schema for ChatKit action responses."""
+    status: str
+    thread_id: str
+    result: Optional[Dict[str, Any]] = None
