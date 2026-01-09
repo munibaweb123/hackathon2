@@ -72,7 +72,7 @@ class Task(SQLModel, table=True):
         return False
 
     @property
-    def is_recurring(self) -> bool:
+    def has_recurrence(self) -> bool:
         """Check if task has a recurrence pattern."""
         return self.recurrence_id is not None
 
