@@ -118,6 +118,11 @@ class JwtApiClient {
           // Clear cached token but DON'T redirect - let auth layer handle it
           clearCachedToken();
           if (typeof window !== 'undefined') {
+            // Clear all possible token storage keys
+            localStorage.removeItem('bearer_token');
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
             localStorage.removeItem('jwt_token');
             sessionStorage.removeItem('jwt_token');
           }
@@ -279,7 +284,11 @@ class JwtApiClient {
     const response = await this.client.post(`/api/chat/chatkit`, {
       message,
       user_id: userId,
-      thread_id: `thread-${Date.now()}`
+      thread_id: 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      })
     });
     return response.data;
   }

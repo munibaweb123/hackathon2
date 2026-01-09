@@ -3,54 +3,34 @@ import { nextCookies } from 'better-auth/next-js';
 import { jwt } from 'better-auth/plugins';
 import { Pool } from 'pg';
 
-// Create a singleton pattern for the database connection to avoid multiple instances in Next.js
-let pool: Pool;
+// Create PostgreSQL connection pool for Neon
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes('neon.tech') ? { rejectUnauthorized: false } : undefined,
+});
 
-// Initialize the pool only once in development, or on each request in production serverless
-if (process.env.NODE_ENV === 'production') {
-  // In production, Better Auth will handle the connection lifecycle appropriately
-  pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    // Neon-specific optimizations for serverless
-    max: 3,                    // Lower max connections for serverless
-    min: 0,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000,
-  });
-} else {
-  // In development, reuse the same pool instance to avoid connection issues
-  if (!global.pool) {
-    global.pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      max: 3,
-      min: 0,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
-    });
-  }
-  pool = global.pool;
-}
-
-// Add type declaration for the global pool to avoid TypeScript errors
-declare global {
-  var pool: Pool | undefined;
-}
-
-// Determine if we're running over HTTPS - check at runtime
-const getBaseUrl = () => process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_BETTER_AUTH_URL || 'http://localhost:3000';
-
-// Force non-secure cookies for local/HTTP development
-// In production with HTTPS, set BETTER_AUTH_SECURE_COOKIES=true
-const useSecureCookies = process.env.BETTER_AUTH_SECURE_COOKIES === 'true';
-
+// Better Auth configuration with Neon PostgreSQL
 export const auth = betterAuth({
+  baseURL: process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_BETTER_AUTH_URL || 'http://localhost:3000',
+  secret: process.env.BETTER_AUTH_SECRET,
+
+  // Database connection - use Neon PostgreSQL
   database: pool,
-  baseURL: getBaseUrl(),
-  emailAndPassword: {
-    enabled: true,
-    autoSignIn: true,
+
+  // Configure user table to match backend's schema
+  user: {
+    modelName: 'users',  // Use 'users' table (backend's table) instead of 'user'
+    fields: {
+      // Map Better Auth's camelCase to backend's snake_case
+      emailVerified: 'email_verified',
+      createdAt: 'created_at',
+      updatedAt: 'updated_at',
+    },
   },
+
+  // Configure session table
   session: {
+    modelName: 'session',  // Keep default 'session' table
     expiresIn: 60 * 60 * 24 * 7, // 7 days
     updateAge: 60 * 60 * 24,     // 1 day
     cookieCache: {
@@ -58,6 +38,12 @@ export const auth = betterAuth({
       maxAge: 5 * 60,            // 5 minutes
     },
   },
+
+  emailAndPassword: {
+    enabled: true,
+    autoSignIn: true,
+  },
+
   trustedOrigins: [
     'http://localhost:3000',
     'http://localhost:8000',
@@ -65,14 +51,16 @@ export const auth = betterAuth({
     process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
     process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000',
   ],
+
   advanced: {
-    // Explicitly disable secure cookies for HTTP (local K8s development)
-    useSecureCookies: useSecureCookies,
+    // Explicitly disable secure cookies for HTTP (local development)
+    useSecureCookies: process.env.BETTER_AUTH_SECURE_COOKIES === 'true',
     // Cross-subdomain cookies disabled for localhost
     crossSubDomainCookies: {
       enabled: false,
     },
   },
+
   plugins: [
     nextCookies(),
     jwt(),  // Uses EdDSA by default, backend fetches JWKS to verify

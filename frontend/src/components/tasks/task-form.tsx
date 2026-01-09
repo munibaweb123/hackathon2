@@ -17,12 +17,17 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import type { Task, CreateTaskInput, UpdateTaskInput, RecurrencePattern } from '@/types';
+import { RecurrenceSelector } from './RecurrenceSelector';
+import { PrioritySelector } from './PrioritySelector';
+import { TagSelector } from './TagSelector';
 
 const taskSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title is too long'),
   description: z.string().max(1000, 'Description is too long').optional(),
-  priority: z.enum(['low', 'medium', 'high']),
+  priority: z.enum(['low', 'medium', 'high', 'none']),
   due_date: z.string().optional(),
+  reminder_at: z.string().optional(),
+  tags: z.array(z.string()),
   is_recurring: z.boolean().optional(),
   recurrence_pattern: z.string().nullable().optional(),
   recurrence_interval: z.number().min(1).optional(),
@@ -37,6 +42,17 @@ const taskSchema = z.object({
 }, {
   message: 'Recurrence pattern is required for recurring tasks',
   path: ['recurrence_pattern'],
+}).refine((data) => {
+  // If both due_date and reminder_at are provided, reminder_at must be before due_date
+  if (data.due_date && data.reminder_at) {
+    const dueDate = new Date(data.due_date);
+    const reminderDate = new Date(data.reminder_at);
+    return reminderDate < dueDate;
+  }
+  return true;
+}, {
+  message: 'Reminder time must be before due date',
+  path: ['reminder_at'],
 });
 
 type TaskFormData = z.infer<typeof taskSchema>;
@@ -45,6 +61,7 @@ interface CreateTaskFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   task?: null;
+  allTags: { id: string; name: string; color?: string }[];
   onSubmit: (data: CreateTaskInput) => Promise<void>;
   isLoading: boolean;
 }
@@ -53,13 +70,14 @@ interface EditTaskFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   task: Task;
+  allTags: { id: string; name: string; color?: string }[];
   onSubmit: (data: UpdateTaskInput) => Promise<void>;
   isLoading: boolean;
 }
 
 type TaskFormProps = CreateTaskFormProps | EditTaskFormProps;
 
-export function TaskForm({ open, onOpenChange, task, onSubmit, isLoading }: TaskFormProps) {
+export function TaskForm({ open, onOpenChange, task, allTags, onSubmit, isLoading }: TaskFormProps) {
   const isEditing = !!task;
 
   const {
@@ -70,6 +88,7 @@ export function TaskForm({ open, onOpenChange, task, onSubmit, isLoading }: Task
     control,
     trigger,
     getValues,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<TaskFormData>({
     resolver: zodResolver(taskSchema),
@@ -80,6 +99,8 @@ export function TaskForm({ open, onOpenChange, task, onSubmit, isLoading }: Task
       description: '',
       priority: 'medium',
       due_date: '',
+      reminder_at: '',
+      tags: [],
       is_recurring: false,
       recurrence_pattern: undefined,
       recurrence_interval: 1,
@@ -97,6 +118,7 @@ export function TaskForm({ open, onOpenChange, task, onSubmit, isLoading }: Task
         description: task.description || '',
         priority: task.priority,
         due_date: task.due_date ? task.due_date.split('T')[0] : '',
+        reminder_at: task.reminder_at ? task.reminder_at : '',
         is_recurring: task.is_recurring || false,
         recurrence_pattern: task.recurrence_pattern,
         recurrence_interval: task.recurrence_interval || 1,
@@ -108,6 +130,7 @@ export function TaskForm({ open, onOpenChange, task, onSubmit, isLoading }: Task
         description: '',
         priority: 'medium',
         due_date: '',
+        reminder_at: '',
         is_recurring: false,
         recurrence_pattern: undefined,
         recurrence_interval: 1,
@@ -131,6 +154,7 @@ export function TaskForm({ open, onOpenChange, task, onSubmit, isLoading }: Task
       description: data.description || undefined,
       priority: data.priority,
       due_date: data.due_date ? convertDateToDateTime(data.due_date) : undefined,
+      reminder_at: data.reminder_at ? data.reminder_at : undefined,
       is_recurring: data.is_recurring,
       recurrence_pattern: (data.recurrence_pattern as RecurrencePattern) || undefined,
       recurrence_interval: data.recurrence_interval,
@@ -193,19 +217,11 @@ export function TaskForm({ open, onOpenChange, task, onSubmit, isLoading }: Task
               )}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="priority">Priority</Label>
-              <select
-                id="priority"
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                {...register('priority')}
-                disabled={isLoading}
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
-            </div>
+            <PrioritySelector
+              priority={watch('priority')}
+              onPriorityChange={(priority) => setValue('priority', priority)}
+              disabled={isLoading}
+            />
 
             <div className="space-y-2">
               <Label htmlFor="due_date">Due Date</Label>
@@ -213,6 +229,29 @@ export function TaskForm({ open, onOpenChange, task, onSubmit, isLoading }: Task
                 id="due_date"
                 type="date"
                 {...register('due_date')}
+                disabled={isLoading}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="reminder_at">Reminder Time</Label>
+              <Input
+                id="reminder_at"
+                type="datetime-local"
+                {...register('reminder_at')}
+                disabled={isLoading}
+              />
+              {errors.reminder_at && (
+                <p className="text-sm text-red-600">{errors.reminder_at.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tags">Tags</Label>
+              <TagSelector
+                selectedTags={watch('tags') || []}
+                allTags={allTags}
+                onTagsChange={(tagIds) => setValue('tags', tagIds)}
                 disabled={isLoading}
               />
             </div>
@@ -237,38 +276,18 @@ export function TaskForm({ open, onOpenChange, task, onSubmit, isLoading }: Task
 
             {isRecurring && (
               <div className="space-y-4 border-t pt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="recurrence_pattern">Recurrence Pattern *</Label>
-                  <select
-                    id="recurrence_pattern"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    {...register('recurrence_pattern')}
-                    disabled={isLoading}
-                  >
-                    <option value="">Select pattern</option>
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="biweekly">Bi-weekly</option>
-                    <option value="monthly">Monthly</option>
-                    <option value="yearly">Yearly</option>
-                    <option value="custom">Custom</option>
-                  </select>
-                  {errors.recurrence_pattern && (
-                    <p className="text-sm text-red-600">{errors.recurrence_pattern.message}</p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="recurrence_interval">Interval</Label>
-                  <Input
-                    id="recurrence_interval"
-                    type="number"
-                    min="1"
-                    {...register('recurrence_interval', { valueAsNumber: true })}
-                    disabled={isLoading}
-                  />
-                  <p className="text-sm text-muted-foreground">e.g., every 2 weeks</p>
-                </div>
+                <RecurrenceSelector
+                  recurrencePattern={watch('recurrence_pattern') as RecurrencePattern}
+                  recurrenceInterval={watch('recurrence_interval') || 1}
+                  onPatternChange={(pattern) => {
+                    setValue('recurrence_pattern', pattern);
+                    trigger('recurrence_pattern'); // Trigger validation
+                  }}
+                  onIntervalChange={(interval) => {
+                    setValue('recurrence_interval', interval);
+                  }}
+                  disabled={isLoading}
+                />
 
                 <div className="space-y-2">
                   <Label htmlFor="recurrence_end_date">End Date (optional)</Label>

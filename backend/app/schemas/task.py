@@ -32,6 +32,10 @@ class TaskCreate(BaseModel):
     description: Optional[str] = Field(None, max_length=1000)
     priority: Priority = Priority.MEDIUM
     due_date: Optional[datetime] = None
+    reminder_at: Optional[datetime] = Field(
+        default=None,
+        description="When to send reminder notification. Must be before due_date if both are set."
+    )
 
     # Recurring task fields
     is_recurring: bool = Field(default=False)
@@ -46,6 +50,7 @@ class TaskCreate(BaseModel):
                 "description": "Milk, eggs, bread",
                 "priority": "medium",
                 "due_date": "2024-12-15T18:00:00Z",
+                "reminder_at": "2024-12-15T17:00:00Z",
                 "is_recurring": False,
                 "recurrence_pattern": None,
                 "recurrence_interval": 1,
@@ -62,6 +67,10 @@ class TaskUpdate(BaseModel):
     completed: Optional[bool] = None
     priority: Optional[Priority] = None
     due_date: Optional[datetime] = None
+    reminder_at: Optional[datetime] = Field(
+        default=None,
+        description="When to send reminder notification. Must be before due_date if both are set."
+    )
 
     # Recurring task fields
     is_recurring: Optional[bool] = None
@@ -75,6 +84,8 @@ class TaskUpdate(BaseModel):
                 "title": "Buy groceries (updated)",
                 "completed": True,
                 "priority": "high",
+                "due_date": "2024-12-15T18:00:00Z",
+                "reminder_at": "2024-12-15T17:00:00Z",
                 "is_recurring": True,
                 "recurrence_pattern": "weekly",
                 "recurrence_interval": 1,
@@ -83,7 +94,9 @@ class TaskUpdate(BaseModel):
 
 
 # Import reminder schemas for nested response - import at the end to avoid circular import
+from .recurrence import RecurrencePatternResponse
 from .reminder import ReminderResponse
+from .tag import TagResponse
 
 
 class TaskResponse(BaseModel):
@@ -95,7 +108,11 @@ class TaskResponse(BaseModel):
     completed: bool
     priority: Priority
     due_date: Optional[datetime] = None
+    reminder_at: Optional[datetime] = None
     user_id: str
+
+    # Computed property for overdue status
+    is_overdue: bool = False
 
     # Recurring task fields
     is_recurring: bool
@@ -104,13 +121,19 @@ class TaskResponse(BaseModel):
     recurrence_end_date: Optional[datetime] = None
     parent_task_id: Optional[int] = None
 
+    # Include recurrence pattern in the response
+    recurrence_pattern: Optional[RecurrencePatternResponse] = None
+
+    # Include tags in the response
+    tags: Optional[List[TagResponse]] = []
+
     # Include reminders in the response
     reminders: Optional[List[ReminderResponse]] = []
 
     created_at: datetime
     updated_at: datetime
 
-    @field_serializer('due_date', 'recurrence_end_date', 'created_at', 'updated_at')
+    @field_serializer('due_date', 'reminder_at', 'recurrence_end_date', 'created_at', 'updated_at')
     def serialize_datetime(self, v: Optional[datetime]) -> Optional[str]:
         """Serialize datetime to ISO format with timezone info."""
         if v is None:

@@ -130,11 +130,12 @@ export const registerUser = async (
 };
 
 /**
- * Login user
+ * Login user - enhanced to support both legacy and new authentication
  */
 export const loginUser = async (
   loginData: UserLoginRequest
 ): Promise<UserLoginResponse> => {
+  // First, try the standard backend authentication
   try {
     const response: AxiosResponse<UserLoginResponse> = await authApi.post(
       '/auth/login',
@@ -149,17 +150,51 @@ export const loginUser = async (
 
     return response.data;
   } catch (error) {
-    if (axios.isAxiosError(error) && error.response) {
-      const authError: AuthErrorResponse = {
-        success: false,
-        error: {
-          message: error.response.data.message || error.response.data.detail || 'Login failed',
-          code: error.response.data.code || 'LOGIN_ERROR',
+    console.log('[auth-service] Standard login failed, trying legacy login...', error);
+
+    // If standard login fails, try the legacy backend authentication
+    try {
+      const legacyResponse = await axios.post(
+        `${API_BASE_URL}/api/auth/legacy-login`,
+        loginData,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
         }
+      );
+
+      // Store tokens from legacy response
+      if (legacyResponse.data.success) {
+        localStorage.setItem('access_token', legacyResponse.data.accessToken);
+        localStorage.setItem('refresh_token', legacyResponse.data.refreshToken);
+      }
+
+      // Convert legacy response to expected format
+      const convertedResponse: UserLoginResponse = {
+        success: legacyResponse.data.success,
+        user: legacyResponse.data.user,
+        accessToken: legacyResponse.data.accessToken,
+        refreshToken: legacyResponse.data.refreshToken,
+        tokenType: legacyResponse.data.tokenType || 'bearer',
       };
-      throw authError;
+
+      return convertedResponse;
+    } catch (legacyError) {
+      console.error('[auth-service] Legacy login also failed:', legacyError);
+
+      if (axios.isAxiosError(legacyError) && legacyError.response) {
+        const authError: AuthErrorResponse = {
+          success: false,
+          error: {
+            message: legacyError.response.data.message || legacyError.response.data.detail || 'Login failed',
+            code: legacyError.response.data.code || 'LOGIN_ERROR',
+          }
+        };
+        throw authError;
+      }
+      throw legacyError;
     }
-    throw error;
   }
 };
 

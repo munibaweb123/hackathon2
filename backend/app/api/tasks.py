@@ -2,16 +2,51 @@
 
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from sqlmodel import Session, select, col
 
 from ..core.database import get_session
 from ..core.auth import get_current_user, AuthenticatedUser, verify_user_access
-from ..models.task import Task, Priority, RecurrencePattern
+from ..models.task import Task, Priority
+from ..schemas.task import RecurrencePattern
 from ..schemas.task import TaskCreate, TaskUpdate, TaskResponse, TaskListResponse
 from ..utils.recurrence import generate_recurring_tasks
+from ..services.event_publisher import get_event_publisher
 
 router = APIRouter()
+
+
+def _validate_reminder_time(due_date: Optional[datetime], reminder_at: Optional[datetime]) -> None:
+    """Validate that reminder_at is before due_date if both are set."""
+    if due_date and reminder_at and reminder_at >= due_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="reminder_at must be before due_date"
+        )
+
+
+async def _schedule_reminder_event(
+    task_id: int,
+    user_id: str,
+    title: str,
+    description: Optional[str],
+    due_at: datetime,
+    remind_at: datetime,
+) -> None:
+    """Publish a reminder event to the notification service via Dapr."""
+    publisher = get_event_publisher()
+    await publisher.publish_reminder_event(
+        task_id=task_id,
+        user_id=user_id,
+        title=title,
+        due_at=due_at,
+        remind_at=remind_at,
+        notification_preferences={
+            "in_app": True,
+            "email": True,
+        },
+        description=description,
+    )
 
 
 @router.get("/tasks", response_model=TaskListResponse)
@@ -39,10 +74,11 @@ async def list_tasks(
     statement = select(Task).where(Task.user_id == current_user.id)
 
     # Don't include parent recurring tasks if we're showing instances separately
+    # Note: is_recurring is a property computed from recurrence_id, so we use recurrence_id for SQL
     if include_recurring:
-        statement = statement.where((Task.is_recurring == False) | (Task.parent_task_id.is_(None)))
+        statement = statement.where((Task.recurrence_id.is_(None)) | (Task.parent_task_id.is_(None)))
     else:
-        statement = statement.where(Task.is_recurring == False)
+        statement = statement.where(Task.recurrence_id.is_(None))
 
     # Apply status filter
     if status_filter == "completed":
@@ -53,9 +89,9 @@ async def list_tasks(
     # Get total count before pagination
     count_statement = select(Task).where(Task.user_id == current_user.id)
     if include_recurring:
-        count_statement = count_statement.where((Task.is_recurring == False) | (Task.parent_task_id.is_(None)))
+        count_statement = count_statement.where((Task.recurrence_id.is_(None)) | (Task.parent_task_id.is_(None)))
     else:
-        count_statement = count_statement.where(Task.is_recurring == False)
+        count_statement = count_statement.where(Task.recurrence_id.is_(None))
 
     if status_filter == "completed":
         count_statement = count_statement.where(Task.completed == True)
@@ -95,6 +131,7 @@ async def list_tasks(
 @router.post("/tasks", response_model=TaskResponse, status_code=status.HTTP_201_CREATED)
 async def create_task(
     task_data: TaskCreate,
+    background_tasks: BackgroundTasks,
     current_user: AuthenticatedUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> TaskResponse:
@@ -105,11 +142,15 @@ async def create_task(
     - **description**: Task description (optional)
     - **priority**: low, medium, or high (default: medium)
     - **due_date**: Due date in ISO format (optional)
+    - **reminder_at**: When to send reminder (must be before due_date, optional)
     - **is_recurring**: Whether the task repeats (default: False)
     - **recurrence_pattern**: daily, weekly, biweekly, monthly, yearly, or custom (required if recurring)
     - **recurrence_interval**: How often to repeat (e.g., every 2 weeks) (default: 1)
     - **recurrence_end_date**: When to stop recurring (optional)
     """
+
+    # Validate reminder_at is before due_date
+    _validate_reminder_time(task_data.due_date, task_data.reminder_at)
 
     # Validate recurrence fields if task is recurring
     if task_data.is_recurring:
@@ -130,6 +171,7 @@ async def create_task(
         description=task_data.description,
         priority=Priority(task_data.priority.value),
         due_date=task_data.due_date,
+        reminder_at=task_data.reminder_at,
         user_id=current_user.id,  # Use the authenticated user's ID
         is_recurring=task_data.is_recurring,
         recurrence_pattern=task_data.recurrence_pattern,
@@ -140,6 +182,18 @@ async def create_task(
     session.add(task)
     session.commit()
     session.refresh(task)
+
+    # Schedule reminder event if reminder_at is set
+    if task.reminder_at and task.due_date:
+        background_tasks.add_task(
+            _schedule_reminder_event,
+            task_id=task.id,
+            user_id=current_user.id,
+            title=task.title,
+            description=task.description,
+            due_at=task.due_date,
+            remind_at=task.reminder_at,
+        )
 
     # If this is a recurring task, generate the next few instances
     if task_data.is_recurring and task_data.due_date:
@@ -207,6 +261,7 @@ async def get_task(
 async def update_task(
     task_id: int,
     task_data: TaskUpdate,
+    background_tasks: BackgroundTasks,
     current_user: AuthenticatedUser = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> TaskResponse:
@@ -225,6 +280,14 @@ async def update_task(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Task not found",
         )
+
+    # Validate reminder_at is before due_date (consider both new and existing values)
+    effective_due_date = task_data.due_date if task_data.due_date is not None else task.due_date
+    effective_reminder_at = task_data.reminder_at if task_data.reminder_at is not None else task.reminder_at
+    _validate_reminder_time(effective_due_date, effective_reminder_at)
+
+    # Track if reminder is being updated
+    reminder_updated = task_data.reminder_at is not None and task_data.reminder_at != task.reminder_at
 
     # Validate recurrence fields if task is being updated to recurring
     # If is_recurring is being set to True (and it wasn't already True), validate required recurrence fields
@@ -324,6 +387,18 @@ async def update_task(
     session.add(task)
     session.commit()
     session.refresh(task)
+
+    # Schedule reminder event if reminder was updated or newly set
+    if reminder_updated and task.reminder_at and task.due_date:
+        background_tasks.add_task(
+            _schedule_reminder_event,
+            task_id=task.id,
+            user_id=current_user.id,
+            title=task.title,
+            description=task.description,
+            due_at=task.due_date,
+            remind_at=task.reminder_at,
+        )
 
     return TaskResponse.model_validate(task)
 

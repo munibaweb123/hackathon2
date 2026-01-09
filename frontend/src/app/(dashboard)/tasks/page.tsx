@@ -191,6 +191,7 @@ export default function TasksPage() {
       <TaskForm
         open={isFormOpen}
         onOpenChange={setIsFormOpen}
+        allTags={[]}
         onSubmit={handleCreateTask}
         isLoading={isSubmitting}
       />
@@ -200,6 +201,7 @@ export default function TasksPage() {
         open={!!editingTask}
         onOpenChange={(open) => !open && setEditingTask(null)}
         task={editingTask}
+        allTags={[]}
         onSubmit={handleUpdateTask}
         isLoading={isSubmitting}
       />

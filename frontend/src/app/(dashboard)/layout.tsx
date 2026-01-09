@@ -6,31 +6,27 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/layout/header';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Footer } from '@/components/layout/footer';
-import { useSession } from '@/lib/auth-client';
+import { useAuth } from '@/hooks/use-auth';
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Use useSession directly to avoid any abstraction issues
-  const { data: session, isPending } = useSession();
-
-  const isAuthenticated = !!session?.user;
-  const user = session?.user;
+  // Use useAuth hook which checks backend tokens (localStorage) instead of Better Auth session
+  const { user, isAuthenticated, isLoading } = useAuth();
 
   // Debug logging
   useEffect(() => {
-    console.log('[DashboardLayout] Direct session check:', {
-      session: session,
+    console.log('[DashboardLayout] Backend auth check:', {
       user: user,
-      isPending,
+      isLoading,
       isAuthenticated,
     });
-  }, [session, user, isPending, isAuthenticated]);
+  }, [user, isLoading, isAuthenticated]);
 
   // Show loading while checking auth
-  if (isPending) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <motion.div
@@ -69,24 +65,26 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <div className="flex flex-1">
+      <div className="flex flex-1 overflow-hidden">
         <Sidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <Header />
-          <AnimatePresence mode="wait">
-            <motion.main
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-              className="flex-1 container px-4 sm:px-6 py-6 max-w-6xl"
-            >
-              {children}
-            </motion.main>
-          </AnimatePresence>
-          <Footer />
+          <div className="flex-1 overflow-auto">
+            <AnimatePresence mode="wait">
+              <motion.main
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+                className="container px-4 sm:px-6 py-6 max-w-6xl"
+              >
+                {children}
+              </motion.main>
+            </AnimatePresence>
+          </div>
         </div>
       </div>
+      <Footer />
     </div>
   );
 }

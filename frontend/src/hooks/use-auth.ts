@@ -2,8 +2,9 @@
 
 import { useCallback, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession, signIn, signUp, signOut, getSession, clearStoredToken } from '@/lib/auth-client';
+import { useSession, signIn, signUp, signOut, clearStoredToken } from '@/lib/auth-client';
 import { clearCachedToken } from '@/services/auth/api-client';
+import { loginUser, registerUser } from '@/services/auth-service';
 import type { User, LoginInput, RegisterInput } from '@/types';
 
 export function useAuth() {
@@ -26,54 +27,25 @@ export function useAuth() {
   const login = useCallback(async (input: LoginInput) => {
     setIsLoading(true);
     try {
-      console.log('[useAuth] Starting login...');
-      const result = await signIn.email({
+      console.log('[useAuth] Starting backend login...');
+
+      // Use the backend authentication service instead of Better Auth directly
+      // This allows us to authenticate users that exist in the backend database
+      const result = await loginUser({
         email: input.email,
         password: input.password,
-      }, {
-        // Capture bearer token from response headers
-        onSuccess: (ctx) => {
-          const authToken = ctx.response.headers.get('set-auth-token');
-          if (authToken) {
-            console.log('[useAuth] Storing bearer token from login response');
-            localStorage.setItem('bearer_token', authToken);
-          }
-        }
       });
 
-      console.log('[useAuth] signIn.email result:', {
-        hasData: !!result.data,
-        hasError: !!result.error,
-        error: result.error?.message
+      console.log('[useAuth] Backend login result:', {
+        success: result.success,
+        user: result.user,
       });
 
-      if (result.error) {
-        throw new Error(result.error.message || 'Login failed');
+      if (!result.success) {
+        throw new Error('Login failed');
       }
 
-      console.log('[useAuth] Login successful, fetching JWT token...');
-
-      // Fetch and store JWT token for API calls
-      try {
-        const { getJwtToken } = await import('@/lib/auth-client');
-        const token = await getJwtToken();
-        if (token) {
-          localStorage.setItem('bearer_token', token);
-          console.log('[useAuth] JWT token stored successfully');
-        } else {
-          console.warn('[useAuth] No JWT token returned, will use cookie auth');
-        }
-      } catch (tokenError) {
-        console.warn('[useAuth] Failed to get JWT token:', tokenError);
-      }
-
-      // Wait for session to be fully established
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      // Refetch session to ensure it's available
-      await refetch();
-
-      console.log('[useAuth] Session confirmed, redirecting to /tasks...');
+      console.log('[useAuth] Login successful, redirecting to /tasks...');
 
       // Use window.location for reliable redirect
       window.location.href = '/tasks';
@@ -85,60 +57,30 @@ export function useAuth() {
     } finally {
       setIsLoading(false);
     }
-  }, [refetch]);
+  }, []);
 
   const register = useCallback(async (input: RegisterInput) => {
     setIsLoading(true);
     try {
-      console.log('[useAuth] Starting registration...');
-      const result = await signUp.email({
+      console.log('[useAuth] Starting backend registration...');
+
+      // Use the backend authentication service instead of Better Auth directly
+      const result = await registerUser({
         email: input.email,
         password: input.password,
         name: input.name || '',
-      }, {
-        // Capture bearer token from response headers
-        onSuccess: (ctx) => {
-          const authToken = ctx.response.headers.get('set-auth-token');
-          if (authToken) {
-            console.log('[useAuth] Storing bearer token from register response');
-            localStorage.setItem('bearer_token', authToken);
-          }
-        }
       });
 
-      console.log('[useAuth] signUp.email result:', {
-        hasData: !!result.data,
-        hasError: !!result.error,
-        error: result.error?.message
+      console.log('[useAuth] Backend registration result:', {
+        success: result.success,
+        user: result.user,
       });
 
-      if (result.error) {
-        throw new Error(result.error.message || 'Registration failed');
+      if (!result.success) {
+        throw new Error('Registration failed');
       }
 
-      console.log('[useAuth] Registration successful, fetching JWT token...');
-
-      // Fetch and store JWT token for API calls
-      try {
-        const { getJwtToken } = await import('@/lib/auth-client');
-        const token = await getJwtToken();
-        if (token) {
-          localStorage.setItem('bearer_token', token);
-          console.log('[useAuth] JWT token stored successfully');
-        } else {
-          console.warn('[useAuth] No JWT token returned, will use cookie auth');
-        }
-      } catch (tokenError) {
-        console.warn('[useAuth] Failed to get JWT token:', tokenError);
-      }
-
-      // Wait for session to be fully established
-      await new Promise(resolve => setTimeout(resolve, 300));
-
-      // Refetch session to ensure it's available
-      await refetch();
-
-      console.log('[useAuth] Session confirmed, redirecting to /tasks...');
+      console.log('[useAuth] Registration successful, redirecting to /tasks...');
 
       // Use window.location for reliable redirect
       window.location.href = '/tasks';
@@ -150,15 +92,33 @@ export function useAuth() {
     } finally {
       setIsLoading(false);
     }
-  }, [refetch]);
+  }, []);
 
   const logout = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Clear cached JWT token and bearer token
+      // Clear cached tokens
       clearCachedToken();
       clearStoredToken();
-      await signOut();
+
+      // Use backend logout as well if needed
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/logout`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          },
+        });
+        console.log('[useAuth] Backend logout response:', response.status);
+      } catch (logoutErr) {
+        console.warn('[useAuth] Backend logout failed:', logoutErr);
+      }
+
+      // Clear local tokens
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+
       router.push('/login');
       router.refresh();
     } finally {
@@ -166,22 +126,60 @@ export function useAuth() {
     }
   }, [router]);
 
-  const user: User | null = session?.user ? {
-    id: session.user.id,
-    email: session.user.email,
-    name: session.user.name || undefined,
-    image: session.user.image || undefined,
-    created_at: session.user.createdAt?.toString() || new Date().toISOString(),
-  } : null;
+  // Get user info from backend authentication
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    // Check if user is authenticated by trying to get user info
+    const checkAuth = async () => {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        setCurrentUser(null);
+        setAuthChecked(true);
+        return;
+      }
+
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/me`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setCurrentUser({
+            id: data.user.id,
+            email: data.user.email,
+            name: data.user.name,
+          });
+        } else {
+          console.log('[useAuth] User not authenticated via backend:', response.status);
+          setCurrentUser(null);
+          // Clear invalid token
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+        }
+      } catch (err) {
+        console.log('[useAuth] Error checking backend auth:', err);
+        setCurrentUser(null);
+      } finally {
+        setAuthChecked(true);
+      }
+    };
+
+    checkAuth();
+  }, []);
 
   return {
-    user,
-    isAuthenticated: !!session?.user,
-    isLoading: isPending || isLoading,
+    user: currentUser,
+    isAuthenticated: !!currentUser && authChecked,
+    isLoading: isLoading || (!authChecked && isPending),
     error,
     login,
     register,
     logout,
-    refetch,
+    refetch: () => {}, // Backend auth doesn't use session refetch
   };
 }

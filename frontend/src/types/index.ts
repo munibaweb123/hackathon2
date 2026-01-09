@@ -41,14 +41,26 @@ export interface UserPreference {
   updated_at: string;
 }
 
+// Tag Types
+export interface Tag {
+  id: string;
+  name: string;
+  color?: string;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // Task Types
 export interface Task {
   id: number;
   title: string;
   description?: string;
   completed: boolean;
-  priority: 'low' | 'medium' | 'high';
+  priority: 'low' | 'medium' | 'high' | 'none';
   due_date?: string;
+  reminder_at?: string;
+  is_overdue?: boolean;
   created_at: string;
   updated_at: string;
   user_id: string;
@@ -62,13 +74,18 @@ export interface Task {
 
   // Include reminders in the response
   reminders?: Reminder[];
+
+  // Include tags in the response
+  tags?: Tag[];
 }
 
 export interface CreateTaskInput {
   title: string;
   description?: string;
-  priority?: 'low' | 'medium' | 'high';
+  priority?: 'low' | 'medium' | 'high' | 'none';
   due_date?: string;
+  reminder_at?: string;
+  tag_ids?: string[];
 
   // Recurring task fields
   is_recurring?: boolean;
@@ -80,9 +97,11 @@ export interface CreateTaskInput {
 export interface UpdateTaskInput {
   title?: string;
   description?: string;
-  priority?: 'low' | 'medium' | 'high';
+  priority?: 'low' | 'medium' | 'high' | 'none';
   due_date?: string;
+  reminder_at?: string;
   completed?: boolean;
+  tag_ids?: string[];
 
   // Recurring task fields
   is_recurring?: boolean;
@@ -97,7 +116,7 @@ export interface User {
   email: string;
   name?: string;
   image?: string;
-  created_at: string;
+  created_at?: string;
 }
 
 // Auth Types

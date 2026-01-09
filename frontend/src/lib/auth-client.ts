@@ -20,6 +20,8 @@ export const clearStoredToken = (): void => {
   if (typeof window !== 'undefined') {
     localStorage.removeItem('bearer_token');
     localStorage.removeItem('auth_token');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
     console.log('[auth-client] Tokens cleared from localStorage');
   }
 };
@@ -57,8 +59,9 @@ export const {
   getSession,
 } = authClient;
 
-// Use a single key for JWT token storage
+// Token storage keys - check multiple keys for compatibility
 const JWT_TOKEN_KEY = 'bearer_token';
+const ACCESS_TOKEN_KEY = 'access_token';  // Used by auth-service.ts
 
 /**
  * Get the current JWT token using Better Auth's JWT plugin.
@@ -66,9 +69,10 @@ const JWT_TOKEN_KEY = 'bearer_token';
  */
 export async function getJwtToken(): Promise<string | null> {
   try {
-    // Check localStorage first for cached token (using same key as setStoredToken)
+    // Check localStorage first for cached token (check multiple keys for compatibility)
     if (typeof window !== 'undefined') {
-      const storedToken = localStorage.getItem(JWT_TOKEN_KEY);
+      // Check both bearer_token (Better Auth) and access_token (auth-service)
+      const storedToken = localStorage.getItem(JWT_TOKEN_KEY) || localStorage.getItem(ACCESS_TOKEN_KEY);
       if (storedToken) {
         // Verify token is not expired (only if it's a JWT)
         try {
@@ -82,6 +86,7 @@ export async function getJwtToken(): Promise<string | null> {
             } else {
               console.log('[getJwtToken] Cached token expired or expiring soon, refreshing...');
               localStorage.removeItem(JWT_TOKEN_KEY);
+              localStorage.removeItem(ACCESS_TOKEN_KEY);
             }
           } else {
             // Not a JWT, might be session token - still use it
@@ -121,13 +126,41 @@ export async function getJwtToken(): Promise<string | null> {
       console.log('[getJwtToken] authClient.token() threw:', e);
     }
 
-    // Fallback: Direct fetch from /api/auth/token endpoint
+    // Fallback 1: Use Next.js server-side exchange (has access to cookies)
     try {
-      const baseUrl = process.env.NEXT_PUBLIC_BETTER_AUTH_URL || 'http://localhost:3000';
-      console.log('[getJwtToken] Fetching from:', `${baseUrl}/api/auth/token`);
-      const response = await fetch(`${baseUrl}/api/auth/token`, {
+      console.log('[getJwtToken] Trying Next.js exchange-token endpoint...');
+      const exchangeResponse = await fetch('/api/auth/exchange-token', {
         method: 'GET',
         credentials: 'include',
+      });
+
+      console.log('[getJwtToken] exchange-token response status:', exchangeResponse.status);
+
+      if (exchangeResponse.ok) {
+        const exchangeData = await exchangeResponse.json();
+        if (exchangeData?.token) {
+          console.log('[getJwtToken] Got token from exchange-token endpoint');
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(ACCESS_TOKEN_KEY, exchangeData.token);
+          }
+          return exchangeData.token;
+        }
+      } else {
+        const errorText = await exchangeResponse.text();
+        console.log('[getJwtToken] exchange-token failed:', exchangeResponse.status, errorText);
+      }
+    } catch (e) {
+      console.log('[getJwtToken] exchange-token fetch failed:', e);
+    }
+
+    // Fallback 2: Direct fetch from backend's token exchange endpoint
+    try {
+      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      console.log('[getJwtToken] Fetching from backend token endpoint:', `${backendUrl}/api/auth/token`);
+
+      const response = await fetch(`${backendUrl}/api/auth/token`, {
+        method: 'GET',
+        credentials: 'include',  // This ensures session cookies are sent
         headers: {
           'accept': 'application/json',
         }
@@ -140,7 +173,7 @@ export async function getJwtToken(): Promise<string | null> {
         console.log('[getJwtToken] /api/auth/token response:', { hasToken: !!tokenData?.token });
 
         if (tokenData?.token) {
-          console.log('[getJwtToken] Got token from /api/auth/token endpoint');
+          console.log('[getJwtToken] Got token from backend /api/auth/token endpoint');
           if (typeof window !== 'undefined') {
             localStorage.setItem(JWT_TOKEN_KEY, tokenData.token);
           }

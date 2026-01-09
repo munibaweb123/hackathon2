@@ -40,11 +40,24 @@ class TodoChatKitServer(ChatKitServer):
 
         # Get conversation context (recent messages for context)
         # Handle potential database errors gracefully
+        from uuid import UUID
+        from ..services.message_service import get_conversation_context
+
+        # Validate thread_id format and convert to UUID if needed
         try:
-            conversation_context = await get_conversation_context(thread_id, limit=20)
-        except Exception as e:
-            logger.warning(f"Could not retrieve conversation context for thread {thread_id}: {str(e)}")
+            # Check if thread_id is already in UUID format
+            UUID(thread_id)
+            valid_uuid = thread_id
+        except ValueError:
+            # If not in UUID format, log and use an empty context
+            logger.warning(f"Invalid UUID format for thread {thread_id}, skipping context retrieval")
             conversation_context = []
+        else:
+            try:
+                conversation_context = get_conversation_context(valid_uuid, limit=20)
+            except Exception as e:
+                logger.warning(f"Could not retrieve conversation context for thread {thread_id}: {str(e)}")
+                conversation_context = []
 
         # Process the input to determine the appropriate action
         input_lower = input.lower().strip()
@@ -841,12 +854,15 @@ class TodoChatKitServer(ChatKitServer):
             # Format 1: {input, thread_id} - standard ChatKit format
             if 'input' in request_data:
                 input_text = request_data.get('input', '')
+                thread_id = request_data.get('thread_id', thread_id)
             # Format 2: {message, thread_id} - frontend format
             elif 'message' in request_data:
                 input_text = request_data.get('message', '')
+                thread_id = request_data.get('thread_id', thread_id)
             # Format 3: {action, thread_id} - action format
             elif 'action' in request_data:
                 action = request_data.get('action', {})
+                thread_id = request_data.get('thread_id', thread_id)
                 # Process action request
                 result = await self.action(thread_id, action, user_id)
 

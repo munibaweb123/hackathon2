@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse, Response
 from typing import Dict, Any
-from app.auth.dependencies import get_current_user
+from app.core.auth import get_current_user, AuthenticatedUser
 from app.models.user import User
 from app.agents.core.todo_agent import run_chatbot_agent
 from app.chatkit.server import get_chatkit_server
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/chat", tags=["Chat"])
 @router.post("/chatkit")
 async def chatkit_api(
     request: Request,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    current_user: AuthenticatedUser = Depends(get_current_user)
 ) -> Response:
     """
     Main ChatKit API endpoint for streaming chat with widgets.
@@ -39,14 +39,14 @@ async def chatkit_api(
     """
     try:
         # Get user_id from authenticated user
-        user_id = current_user.get('user_id')
+        user_id = current_user.id
         if not user_id:
             raise HTTPException(status_code=401, detail="User ID not found in token")
 
         # Create context with user information
         context = {
             "user_id": user_id,
-            "user_info": current_user.get("user_info", {}),
+            "user_info": {"email": current_user.email, "name": current_user.name},
         }
 
         # Get the ChatKit server instance
@@ -116,7 +116,7 @@ async def chatkit_upload(
 async def chat_with_bot(
     user_id: str,
     message_data: Dict[str, Any],
-    current_user: User = Depends(get_current_user)
+    current_user: AuthenticatedUser = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
     Send message to AI chatbot and get response (Legacy endpoint).
@@ -132,8 +132,7 @@ async def chat_with_bot(
         AI assistant response with conversation ID and tool calls
     """
     # Verify that the user_id matches the authenticated user
-    # current_user might be a dict depending on the auth implementation
-    current_user_id = current_user.get('user_id') if isinstance(current_user, dict) else getattr(current_user, 'id', None)
+    current_user_id = current_user.id
     if current_user_id != user_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this user's chat")
 
@@ -165,7 +164,7 @@ async def chat_with_bot(
 @router.get("/{user_id}/history")
 async def get_chat_history(
     user_id: str,
-    current_user: User = Depends(get_current_user)
+    current_user: AuthenticatedUser = Depends(get_current_user)
 ) -> Dict[str, Any]:
     """
     Retrieve chat history for the user.
@@ -178,8 +177,7 @@ async def get_chat_history(
         Chat history with conversations and messages
     """
     # Verify that the user_id matches the authenticated user
-    # current_user might be a dict depending on the auth implementation
-    current_user_id = current_user.get('user_id') if isinstance(current_user, dict) else getattr(current_user, 'id', None)
+    current_user_id = current_user.id
     if current_user_id != user_id:
         raise HTTPException(status_code=403, detail="Not authorized to access this user's chat history")
 

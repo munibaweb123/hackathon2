@@ -19,6 +19,7 @@ export interface UserRegistrationRequest {
   username?: string;
   firstName?: string;
   lastName?: string;
+  name?: string;
 }
 
 export interface UserRegistrationResponse {

@@ -31,3 +31,13 @@ python-multipart>=0.0.12
 # Date handling
 python-dateutil>=2.9.0
 pytz>=2024.1
+
+# Event-Driven Architecture (Phase V)
+aiokafka>=0.11.0  # Kafka client for event streaming
+dapr>=1.14.0  # Dapr SDK for distributed application runtime
+
+# Email notifications
+resend>=2.0.0  # Email delivery service
+
+# WebSocket support
+websockets>=12.0

@@ -10,7 +10,7 @@ import logging
 from .core.config import settings
 from .core.database import create_db_and_tables
 from .core import jwks as jwks_module
-from .api import tasks, reminders, preferences, health, auth, auth_public, notifications, chat
+from .api import tasks, reminders, preferences, health, auth, auth_public, auth_routes, auth_bridge, notifications, chat
 from .utils.reminder_scheduler import start_scheduler
 
 # Initialize rate limiter for the entire application
@@ -62,6 +62,20 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+@app.on_event("startup")
+async def startup_event():
+    """Additional startup tasks"""
+    print("Startup complete - JWKS should be loaded")
+    # Verify JWKS was loaded
+    cached = jwks_module._cached_jwks
+    if cached:
+        print(f"✓ JWKS loaded with {len(cached.get('keys', []))} keys")
+        for key in cached.get('keys', []):
+            print(f"  - Key: kid={key.get('kid')}, alg={key.get('alg')}, kty={key.get('kty')}")
+    else:
+        print("✗ JWKS not loaded - authentication may fail")
+
 # Register the rate limit handler
 app.state.limiter = limiter
 app.add_exception_handler(429, _rate_limit_exceeded_handler)
@@ -82,6 +96,8 @@ app.include_router(reminders.router, prefix=settings.API_PREFIX, tags=["Reminder
 app.include_router(preferences.router, prefix=settings.API_PREFIX, tags=["Preferences"])
 app.include_router(auth_public.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(auth_routes.router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(auth_bridge.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(notifications.router, tags=["Notifications"])
 app.include_router(chat.router, prefix="/api", tags=["Chat"])
 
