@@ -167,6 +167,19 @@ class TodoChatKitServer(ChatKitServer):
             # Create the task
             result = await create_task_for_user(title, "", user_id, "medium", agent_context)
 
+            # Check if task creation was successful
+            if result.get("status") == "error":
+                logger.error(f"Task creation failed for user {user_id}: {result.get('message')}")
+                return {
+                    "status": "error",
+                    "thread_id": thread_id,
+                    "user_id": user_id,
+                    "input": input,
+                    "response_type": "task_creation_failed",
+                    "message": result.get("message", "Failed to create task. Please try again."),
+                    "context": [msg.content for msg in conversation_context[:5]]
+                }
+
             logger.info(f"Task created for user {user_id}: {result.get('task', {}).get('title', 'Unknown')}")
             return {
                 "status": "success",
@@ -951,6 +964,10 @@ class TodoChatKitServer(ChatKitServer):
                     # Try to get title from task_title field first, then from data
                     task_title = result.get('task_title') or result.get('data', {}).get('task', {}).get('title', 'your task')
                     yield json.dumps({"type": "message", "data": {"content": f"I've created the task: '{task_title}'. Is there anything else you'd like me to do?"}})
+
+                elif response_type == 'task_creation_failed':
+                    error_msg = result.get('message', 'Failed to create task. Please try again.')
+                    yield json.dumps({"type": "message", "data": {"content": f"Sorry, I couldn't create the task: {error_msg}"}})
 
                 elif response_type == 'task_completed':
                     task_title = result.get('data', {}).get('task', {}).get('title', 'the task')

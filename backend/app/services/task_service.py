@@ -99,6 +99,9 @@ def create_task(title: str, description: Optional[str], user_id: str, priority: 
     """
     from ..core.database import engine
     from ..models.task import Priority
+
+    logger.info(f"create_task called: title='{title}', user_id='{user_id}', priority='{priority}'")
+
     with Session(engine) as session:
         # Ensure the user exists before creating the task
         _ensure_user_exists(session, user_id)
@@ -112,6 +115,8 @@ def create_task(title: str, description: Optional[str], user_id: str, priority: 
         session.add(task)
         session.commit()
         session.refresh(task)
+
+        logger.info(f"Task created successfully: id={task.id}, title='{task.title}', user_id='{task.user_id}'")
         return task
 
 
