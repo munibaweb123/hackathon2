@@ -1,0 +1,255 @@
+openapi: 3.1.0
+info:
+  title: Todo App - Notifications API
+  version: 1.0.0
+  description: Notification preferences and delivery management
+
+servers:
+  - url: /api/v2
+    description: API v2 with notification features
+
+paths:
+  /notifications/preferences:
+    get:
+      summary: Get notification preferences
+      operationId: getNotificationPreferences
+      tags: [Notifications]
+      responses:
+        '200':
+          description: Current notification preferences
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreference'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    put:
+      summary: Update notification preferences
+      operationId: updateNotificationPreferences
+      tags: [Notifications]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateNotificationPreference'
+      responses:
+        '200':
+          description: Preferences updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreference'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /notifications/history:
+    get:
+      summary: Get notification history
+      operationId: getNotificationHistory
+      tags: [Notifications]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [sent, delivered, failed, pending]
+        - name: since
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        '200':
+          description: Notification history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationHistoryResponse'
+
+  /notifications/test:
+    post:
+      summary: Send a test notification
+      operationId: sendTestNotification
+      tags: [Notifications]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                channel:
+                  type: string
+                  enum: [in_app, email, both]
+                  default: both
+      responses:
+        '200':
+          description: Test notification sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  channels_sent:
+                    type: array
+                    items:
+                      type: string
+
+components:
+  schemas:
+    NotificationPreference:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        in_app_enabled:
+          type: boolean
+          description: Enable WebSocket/browser notifications
+        email_enabled:
+          type: boolean
+          description: Enable email notifications
+        reminder_lead_time:
+          type: integer
+          minimum: 0
+          description: Minutes before due date to send reminder
+        quiet_hours_start:
+          type: string
+          format: time
+          nullable: true
+          description: Start of quiet period (no notifications)
+        quiet_hours_end:
+          type: string
+          format: time
+          nullable: true
+          description: End of quiet period
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - user_id
+        - in_app_enabled
+        - email_enabled
+        - reminder_lead_time
+
+    UpdateNotificationPreference:
+      type: object
+      properties:
+        in_app_enabled:
+          type: boolean
+        email_enabled:
+          type: boolean
+        reminder_lead_time:
+          type: integer
+          minimum: 0
+          maximum: 10080
+          description: Max 1 week (10080 minutes)
+        quiet_hours_start:
+          type: string
+          format: time
+          nullable: true
+        quiet_hours_end:
+          type: string
+          format: time
+          nullable: true
+
+    NotificationRecord:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        task_id:
+          type: string
+          format: uuid
+        task_title:
+          type: string
+        channel:
+          type: string
+          enum: [in_app, email]
+        status:
+          type: string
+          enum: [sent, delivered, failed, pending]
+        scheduled_at:
+          type: string
+          format: date-time
+        sent_at:
+          type: string
+          format: date-time
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+
+    NotificationHistoryResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/NotificationRecord'
+        total:
+          type: integer
+        page:
+          type: integer
+        per_page:
+          type: integer
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+      required: [code, message]
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - BearerAuth: []

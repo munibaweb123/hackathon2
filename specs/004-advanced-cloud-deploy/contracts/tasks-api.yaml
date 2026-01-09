@@ -1,0 +1,625 @@
+openapi: 3.1.0
+info:
+  title: Todo App - Tasks API
+  version: 2.0.0
+  description: Advanced task management API with recurring tasks, priorities, tags, and search
+
+servers:
+  - url: /api/v2
+    description: API v2 with advanced features
+
+paths:
+  /tasks:
+    get:
+      summary: List tasks with filtering and sorting
+      operationId: listTasks
+      tags: [Tasks]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, in_progress, completed]
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [none, low, medium, high]
+        - name: tags
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: true
+        - name: due_before
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: due_after
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Full-text search query
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [due_date, priority, created_at, title]
+            default: created_at
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Create a new task
+      operationId: createTask
+      tags: [Tasks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+      responses:
+        '201':
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /tasks/{taskId}:
+    parameters:
+      - name: taskId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    get:
+      summary: Get a task by ID
+      operationId: getTask
+      tags: [Tasks]
+      responses:
+        '200':
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      summary: Update a task
+      operationId: updateTask
+      tags: [Tasks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTaskRequest'
+      responses:
+        '200':
+          description: Task updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Delete a task
+      operationId: deleteTask
+      tags: [Tasks]
+      parameters:
+        - name: delete_series
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: If true, delete all future recurring instances
+      responses:
+        '204':
+          description: Task deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /tasks/{taskId}/complete:
+    post:
+      summary: Mark task as completed
+      operationId: completeTask
+      tags: [Tasks]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Task completed (may include next recurring instance)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompleteTaskResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /tasks/{taskId}/tags:
+    post:
+      summary: Add tags to a task
+      operationId: addTaskTags
+      tags: [Tasks, Tags]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                tag_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+              required: [tag_ids]
+      responses:
+        '200':
+          description: Tags added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+
+    delete:
+      summary: Remove tags from a task
+      operationId: removeTaskTags
+      tags: [Tasks, Tags]
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: tag_ids
+          in: query
+          required: true
+          schema:
+            type: array
+            items:
+              type: string
+              format: uuid
+      responses:
+        '200':
+          description: Tags removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+
+  /tags:
+    get:
+      summary: List user's tags
+      operationId: listTags
+      tags: [Tags]
+      responses:
+        '200':
+          description: List of tags
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Tag'
+
+    post:
+      summary: Create a new tag
+      operationId: createTag
+      tags: [Tags]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTagRequest'
+      responses:
+        '201':
+          description: Tag created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tag'
+
+  /tags/{tagId}:
+    parameters:
+      - name: tagId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    patch:
+      summary: Update a tag
+      operationId: updateTag
+      tags: [Tags]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTagRequest'
+      responses:
+        '200':
+          description: Tag updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tag'
+
+    delete:
+      summary: Delete a tag
+      operationId: deleteTag
+      tags: [Tags]
+      responses:
+        '204':
+          description: Tag deleted
+
+components:
+  schemas:
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [pending, in_progress, completed]
+        priority:
+          type: string
+          enum: [none, low, medium, high]
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+        reminder_at:
+          type: string
+          format: date-time
+          nullable: true
+        recurrence:
+          $ref: '#/components/schemas/RecurrencePattern'
+          nullable: true
+        tags:
+          type: array
+          items:
+            $ref: '#/components/schemas/Tag'
+        is_overdue:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required: [id, title, status, priority, created_at, updated_at]
+
+    CreateTaskRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+        priority:
+          type: string
+          enum: [none, low, medium, high]
+          default: none
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+        reminder_at:
+          type: string
+          format: date-time
+          nullable: true
+        recurrence:
+          $ref: '#/components/schemas/CreateRecurrencePattern'
+          nullable: true
+        tag_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+      required: [title]
+
+    UpdateTaskRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [pending, in_progress, completed]
+        priority:
+          type: string
+          enum: [none, low, medium, high]
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+        reminder_at:
+          type: string
+          format: date-time
+          nullable: true
+        recurrence:
+          $ref: '#/components/schemas/UpdateRecurrencePattern'
+          nullable: true
+
+    CompleteTaskResponse:
+      type: object
+      properties:
+        completed_task:
+          $ref: '#/components/schemas/Task'
+        next_occurrence:
+          $ref: '#/components/schemas/Task'
+          nullable: true
+          description: Next recurring task instance if applicable
+
+    RecurrencePattern:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        frequency:
+          type: string
+          enum: [daily, weekly, monthly, yearly, custom]
+        interval:
+          type: integer
+          minimum: 1
+        day_of_week:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+            maximum: 6
+          nullable: true
+        day_of_month:
+          type: array
+          items:
+            type: integer
+            minimum: 1
+            maximum: 31
+          nullable: true
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        status:
+          type: string
+          enum: [active, completed, cancelled]
+
+    CreateRecurrencePattern:
+      type: object
+      properties:
+        frequency:
+          type: string
+          enum: [daily, weekly, monthly, yearly, custom]
+        interval:
+          type: integer
+          minimum: 1
+          default: 1
+        day_of_week:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+            maximum: 6
+          nullable: true
+        day_of_month:
+          type: array
+          items:
+            type: integer
+            minimum: 1
+            maximum: 31
+          nullable: true
+        end_date:
+          type: string
+          format: date
+          nullable: true
+        count:
+          type: integer
+          minimum: 1
+          nullable: true
+      required: [frequency]
+
+    UpdateRecurrencePattern:
+      type: object
+      properties:
+        frequency:
+          type: string
+          enum: [daily, weekly, monthly, yearly, custom]
+        interval:
+          type: integer
+          minimum: 1
+        day_of_week:
+          type: array
+          items:
+            type: integer
+          nullable: true
+        day_of_month:
+          type: array
+          items:
+            type: integer
+          nullable: true
+        end_date:
+          type: string
+          format: date
+          nullable: true
+
+    Tag:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 50
+        color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+      required: [id, name, created_at]
+
+    CreateTagRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 50
+        color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          nullable: true
+      required: [name]
+
+    UpdateTagRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 50
+        color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          nullable: true
+
+    TaskListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+        total:
+          type: integer
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total_pages:
+          type: integer
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+      required: [code, message]
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+  - BearerAuth: []

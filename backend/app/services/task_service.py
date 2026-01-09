@@ -60,6 +60,30 @@ def get_task_by_id(task_id: int, user_id: str) -> Optional[Task]:
         return task
 
 
+def _ensure_user_exists(session: Session, user_id: str) -> None:
+    """
+    Ensure a user exists in the database, creating a placeholder if needed.
+
+    This handles the case where a user authenticates via Better Auth but
+    hasn't been synced to the local users table yet.
+    """
+    from ..models.user import User
+
+    user = session.get(User, user_id)
+    if not user:
+        # Create a placeholder user record
+        user = User(
+            id=user_id,
+            email=f"{user_id}@placeholder.local",
+            name="User",
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        session.add(user)
+        session.commit()
+        logger.info(f"Created placeholder user for user_id: {user_id}")
+
+
 def create_task(title: str, description: Optional[str], user_id: str, priority: str = "medium") -> Task:
     """
     Create a new task for a user.
@@ -76,6 +100,9 @@ def create_task(title: str, description: Optional[str], user_id: str, priority: 
     from ..core.database import engine
     from ..models.task import Priority
     with Session(engine) as session:
+        # Ensure the user exists before creating the task
+        _ensure_user_exists(session, user_id)
+
         task = Task(
             title=title,
             description=description,
@@ -258,6 +285,9 @@ def create_task_with_reminder(
     from uuid import UUID
 
     with Session(engine) as session:
+        # Ensure the user exists before creating the task
+        _ensure_user_exists(session, user_id)
+
         task = Task(
             title=title,
             description=description,

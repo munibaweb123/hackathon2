@@ -1,0 +1,39 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+  namespace: todo-app
+spec:
+  type: state.postgresql
+  version: v1
+  metadata:
+    # PostgreSQL connection (Neon Serverless)
+    - name: connectionString
+      secretKeyRef:
+        name: database-secrets
+        key: connectionString
+    - name: tableName
+      value: "dapr_state"
+    - name: keyPrefix
+      value: "name"
+    - name: actorStateStore
+      value: "true"
+---
+# Local development configuration
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore-local
+  namespace: todo-app
+spec:
+  type: state.postgresql
+  version: v1
+  metadata:
+    - name: connectionString
+      value: "host=localhost user=postgres password=postgres dbname=todo_app sslmode=disable"
+    - name: tableName
+      value: "dapr_state"
+    - name: keyPrefix
+      value: "name"
+    - name: actorStateStore
+      value: "true"

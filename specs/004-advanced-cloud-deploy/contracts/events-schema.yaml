@@ -1,0 +1,294 @@
+asyncapi: 2.6.0
+info:
+  title: Todo App - Event Schemas
+  version: 1.0.0
+  description: Kafka/Redpanda event schemas for event-driven architecture
+
+servers:
+  redpanda-cloud:
+    url: '{broker_url}'
+    protocol: kafka
+    description: Redpanda Cloud (Kafka-compatible)
+    variables:
+      broker_url:
+        description: Redpanda Cloud broker URL
+
+channels:
+  task-events:
+    description: All task CRUD operations
+    publish:
+      summary: Task event published
+      operationId: publishTaskEvent
+      message:
+        $ref: '#/components/messages/TaskEvent'
+    subscribe:
+      summary: Consume task events
+      operationId: consumeTaskEvent
+      message:
+        $ref: '#/components/messages/TaskEvent'
+
+  reminders:
+    description: Scheduled reminder triggers
+    publish:
+      summary: Reminder event published
+      operationId: publishReminderEvent
+      message:
+        $ref: '#/components/messages/ReminderEvent'
+    subscribe:
+      summary: Consume reminder events
+      operationId: consumeReminderEvent
+      message:
+        $ref: '#/components/messages/ReminderEvent'
+
+  task-updates:
+    description: Real-time task updates for client sync
+    publish:
+      summary: Task update published
+      operationId: publishTaskUpdate
+      message:
+        $ref: '#/components/messages/TaskUpdateEvent'
+    subscribe:
+      summary: Consume task updates
+      operationId: consumeTaskUpdate
+      message:
+        $ref: '#/components/messages/TaskUpdateEvent'
+
+components:
+  messages:
+    TaskEvent:
+      name: TaskEvent
+      title: Task Event
+      summary: Event for task CRUD operations
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/TaskEventPayload'
+
+    ReminderEvent:
+      name: ReminderEvent
+      title: Reminder Event
+      summary: Event for scheduled task reminders
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ReminderEventPayload'
+
+    TaskUpdateEvent:
+      name: TaskUpdateEvent
+      title: Task Update Event
+      summary: Event for real-time client synchronization
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/TaskUpdateEventPayload'
+
+  schemas:
+    TaskEventPayload:
+      type: object
+      required:
+        - event_id
+        - event_type
+        - task_id
+        - user_id
+        - timestamp
+      properties:
+        event_id:
+          type: string
+          format: uuid
+          description: Unique event identifier
+        event_type:
+          type: string
+          enum:
+            - created
+            - updated
+            - completed
+            - deleted
+          description: Type of task operation
+        task_id:
+          type: string
+          format: uuid
+          description: ID of the affected task
+        user_id:
+          type: string
+          format: uuid
+          description: ID of the user who performed the action
+        task_data:
+          $ref: '#/components/schemas/TaskData'
+          description: Full task object (included for created/updated/completed)
+        timestamp:
+          type: string
+          format: date-time
+          description: When the event occurred
+        correlation_id:
+          type: string
+          format: uuid
+          description: Request correlation ID for tracing
+
+    TaskData:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [pending, in_progress, completed]
+        priority:
+          type: string
+          enum: [none, low, medium, high]
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+        reminder_at:
+          type: string
+          format: date-time
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+        recurrence_id:
+          type: string
+          format: uuid
+          nullable: true
+        parent_task_id:
+          type: string
+          format: uuid
+          nullable: true
+
+    ReminderEventPayload:
+      type: object
+      required:
+        - event_id
+        - task_id
+        - user_id
+        - title
+        - remind_at
+        - timestamp
+      properties:
+        event_id:
+          type: string
+          format: uuid
+          description: Unique event identifier
+        task_id:
+          type: string
+          format: uuid
+          description: ID of the task
+        user_id:
+          type: string
+          format: uuid
+          description: User to notify
+        title:
+          type: string
+          description: Task title for the notification
+        description:
+          type: string
+          nullable: true
+          description: Task description for context
+        due_at:
+          type: string
+          format: date-time
+          description: When the task is due
+        remind_at:
+          type: string
+          format: date-time
+          description: When to send the reminder
+        notification_preferences:
+          $ref: '#/components/schemas/NotificationPreferences'
+        timestamp:
+          type: string
+          format: date-time
+          description: When the event was created
+
+    NotificationPreferences:
+      type: object
+      properties:
+        in_app:
+          type: boolean
+          description: Send in-app (WebSocket) notification
+        email:
+          type: boolean
+          description: Send email notification
+        user_email:
+          type: string
+          format: email
+          description: User's email address (if email enabled)
+
+    TaskUpdateEventPayload:
+      type: object
+      required:
+        - event_id
+        - event_type
+        - task_id
+        - user_id
+        - timestamp
+      properties:
+        event_id:
+          type: string
+          format: uuid
+          description: Unique event identifier
+        event_type:
+          type: string
+          const: sync
+          description: Always 'sync' for update events
+        task_id:
+          type: string
+          format: uuid
+          description: ID of the updated task
+        user_id:
+          type: string
+          format: uuid
+          description: User who owns the task
+        changes:
+          type: object
+          description: Changed fields and their new values
+          additionalProperties: true
+        full_task:
+          $ref: '#/components/schemas/TaskData'
+          description: Optional full task for initial sync
+        timestamp:
+          type: string
+          format: date-time
+          description: When the update occurred
+
+  # Consumer group definitions
+  messageTraits:
+    commonHeaders:
+      headers:
+        type: object
+        properties:
+          correlation_id:
+            type: string
+            format: uuid
+          source:
+            type: string
+            description: Service that produced the event
+          version:
+            type: string
+            description: Event schema version
+
+# Consumer group assignments
+x-consumers:
+  recurring-task-service:
+    channels:
+      - task-events
+    group_id: recurring-task-service
+    description: Creates next occurrence when recurring task completed
+
+  audit-service:
+    channels:
+      - task-events
+    group_id: audit-service
+    description: Logs all task operations for audit trail
+
+  notification-service:
+    channels:
+      - reminders
+    group_id: notification-service
+    description: Sends in-app and email notifications
+
+  websocket-service:
+    channels:
+      - task-updates
+    group_id: websocket-service
+    description: Broadcasts updates to connected clients

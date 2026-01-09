@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from typing import Dict, Any, Optional
 from app.auth.dependencies import get_current_user  # Assuming this exists
-from app.agents.todo_agent import run_chatbot_agent
+from app.agents.core.todo_agent import run_chatbot_agent
 from app.schemas.message import MessageCreate
 from app.models.conversation import ConversationCreate
 from app.core.database import get_session

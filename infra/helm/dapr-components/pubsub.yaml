@@ -1,0 +1,58 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: kafka-pubsub
+  namespace: todo-app
+spec:
+  type: pubsub.kafka
+  version: v1
+  metadata:
+    # Redpanda Cloud (Kafka-compatible) configuration
+    - name: brokers
+      secretKeyRef:
+        name: kafka-secrets
+        key: brokers
+    - name: authType
+      value: "password"
+    - name: saslUsername
+      secretKeyRef:
+        name: kafka-secrets
+        key: username
+    - name: saslPassword
+      secretKeyRef:
+        name: kafka-secrets
+        key: password
+    - name: saslMechanism
+      value: "SCRAM-SHA-256"
+    - name: initialOffset
+      value: "oldest"
+    - name: maxMessageBytes
+      value: "1048576"
+    - name: consumerGroup
+      value: "todo-app-consumers"
+    # TLS settings for Redpanda Cloud
+    - name: disableTls
+      value: "false"
+---
+# Local development configuration (Redpanda single node)
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: kafka-pubsub-local
+  namespace: todo-app
+spec:
+  type: pubsub.kafka
+  version: v1
+  metadata:
+    - name: brokers
+      value: "redpanda.redpanda:9092"
+    - name: authType
+      value: "none"
+    - name: initialOffset
+      value: "oldest"
+    - name: maxMessageBytes
+      value: "1048576"
+    - name: consumerGroup
+      value: "todo-app-consumers-local"
+    - name: disableTls
+      value: "true"

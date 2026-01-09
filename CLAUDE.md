@@ -315,6 +315,8 @@ See `.specify/memory/constitution.md` for code quality, testing, performance, se
 - PostgreSQL (production via Neon Serverless), SQLite (development) (001-ai-chatbot-mcp)
 - Node.js 20+ (frontend), Python 3.13+ (backend), Bash (automation) + Docker Desktop 4.53+, Minikube, kubectl, Helm 3.x, kubectl-ai (optional), Kagent (optional), Docker AI Agent/Gordon (optional) (001-k8s-deployment)
 - PostgreSQL (Kubernetes deployment with PersistentVolumeClaim), Local Minikube persistent volumes (001-k8s-deployment)
+- Python 3.13+ (backend), TypeScript/Node.js 20+ (frontend) + FastAPI, SQLModel, Dapr SDK, aiokafka, Next.js 14, Better Auth, Tailwind CSS (004-advanced-cloud-deploy)
+- PostgreSQL (Neon Serverless), Redpanda Cloud (Kafka-compatible) (004-advanced-cloud-deploy)
 
 ## Recent Changes
 - 001-todo-console-app: Added Python 3.13+ + None (standard library only - in-memory storage)

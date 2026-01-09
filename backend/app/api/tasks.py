@@ -18,11 +18,15 @@ router = APIRouter()
 
 def _validate_reminder_time(due_date: Optional[datetime], reminder_at: Optional[datetime]) -> None:
     """Validate that reminder_at is before due_date if both are set."""
-    if due_date and reminder_at and reminder_at >= due_date:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="reminder_at must be before due_date"
-        )
+    if due_date and reminder_at:
+        # Normalize both datetimes to naive (remove timezone info) for comparison
+        due_naive = due_date.replace(tzinfo=None) if due_date.tzinfo else due_date
+        reminder_naive = reminder_at.replace(tzinfo=None) if reminder_at.tzinfo else reminder_at
+        if reminder_naive >= due_naive:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="reminder_at must be before due_date"
+            )
 
 
 async def _schedule_reminder_event(
