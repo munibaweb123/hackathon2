@@ -1,0 +1,55 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: reminder-cron
+  namespace: todo-app
+spec:
+  type: bindings.cron
+  version: v1
+  metadata:
+    # Check for due reminders every minute
+    - name: schedule
+      value: "* * * * *"  # Every minute
+    - name: direction
+      value: "input"
+---
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: audit-cleanup-cron
+  namespace: todo-app
+spec:
+  type: bindings.cron
+  version: v1
+  metadata:
+    # Clean up audit logs older than 30 days - run daily at 3 AM
+    - name: schedule
+      value: "0 3 * * *"
+    - name: direction
+      value: "input"
+---
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: email-output
+  namespace: todo-app
+spec:
+  type: bindings.smtp
+  version: v1
+  metadata:
+    - name: host
+      value: "smtp.resend.com"
+    - name: port
+      value: "587"
+    - name: user
+      secretKeyRef:
+        name: email-secrets
+        key: username
+    - name: password
+      secretKeyRef:
+        name: email-secrets
+        key: apiKey
+    - name: skipTLSVerify
+      value: "false"
+    - name: emailFrom
+      value: "notifications@todo-app.com"

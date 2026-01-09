@@ -87,7 +87,6 @@ export function TaskForm({ open, onOpenChange, task, allTags, onSubmit, isLoadin
     watch,
     control,
     trigger,
-    getValues,
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<TaskFormData>({
@@ -111,7 +110,10 @@ export function TaskForm({ open, onOpenChange, task, allTags, onSubmit, isLoadin
   // Watch the is_recurring field to conditionally show recurrence fields
   const isRecurring = watch('is_recurring');
 
+  // Reset form when dialog opens or task changes
   useEffect(() => {
+    if (!open) return; // Only reset when dialog is open
+
     if (task) {
       reset({
         title: task.title,
@@ -119,11 +121,12 @@ export function TaskForm({ open, onOpenChange, task, allTags, onSubmit, isLoadin
         priority: task.priority,
         due_date: task.due_date ? task.due_date.split('T')[0] : '',
         reminder_at: task.reminder_at ? task.reminder_at : '',
+        tags: task.tags?.map((t: any) => typeof t === 'string' ? t : t.id) || [],
         is_recurring: task.is_recurring || false,
         recurrence_pattern: task.recurrence_pattern,
         recurrence_interval: task.recurrence_interval || 1,
         recurrence_end_date: task.recurrence_end_date ? task.recurrence_end_date.split('T')[0] : '',
-      }, { keepErrors: true }); // Don't clear errors when resetting form
+      });
     } else {
       reset({
         title: '',
@@ -131,13 +134,14 @@ export function TaskForm({ open, onOpenChange, task, allTags, onSubmit, isLoadin
         priority: 'medium',
         due_date: '',
         reminder_at: '',
+        tags: [],
         is_recurring: false,
         recurrence_pattern: undefined,
         recurrence_interval: 1,
         recurrence_end_date: '',
-      }, { keepErrors: true }); // Don't clear errors when resetting form
+      });
     }
-  }, [task, reset]);
+  }, [task, reset, open]);
 
   const handleFormSubmit = async (data: TaskFormData) => {
     // Convert date strings to datetime strings (backend expects ISO format)
@@ -155,6 +159,7 @@ export function TaskForm({ open, onOpenChange, task, allTags, onSubmit, isLoadin
       priority: data.priority,
       due_date: data.due_date ? convertDateToDateTime(data.due_date) : undefined,
       reminder_at: data.reminder_at ? data.reminder_at : undefined,
+      tag_ids: data.tags.length > 0 ? data.tags : undefined,
       is_recurring: data.is_recurring,
       recurrence_pattern: (data.recurrence_pattern as RecurrencePattern) || undefined,
       recurrence_interval: data.recurrence_interval,
@@ -177,18 +182,7 @@ export function TaskForm({ open, onOpenChange, task, allTags, onSubmit, isLoadin
               : 'Add a new task to your list.'}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit(handleFormSubmit, (errors) => {
-          // Check if errors is a valid object with keys
-          if (errors && typeof errors === 'object' && Object.keys(errors).length > 0) {
-            console.error('Task form validation errors:', errors);
-          } else if (errors) {
-            console.error('Task form validation errors (raw):', typeof errors, errors);
-          } else {
-            console.error('Task form validation failed: No specific validation errors provided');
-          }
-          // Trigger form validation to show errors
-          trigger();
-        })}>
+        <form onSubmit={handleSubmit(handleFormSubmit)}>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="title">Title *</Label>
@@ -254,6 +248,9 @@ export function TaskForm({ open, onOpenChange, task, allTags, onSubmit, isLoadin
                 onTagsChange={(tagIds) => setValue('tags', tagIds)}
                 disabled={isLoading}
               />
+              {errors.tags && (
+                <p className="text-sm text-red-600">{errors.tags.message}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -288,6 +285,9 @@ export function TaskForm({ open, onOpenChange, task, allTags, onSubmit, isLoadin
                   }}
                   disabled={isLoading}
                 />
+                {errors.recurrence_pattern && (
+                  <p className="text-sm text-red-600">{errors.recurrence_pattern.message}</p>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="recurrence_end_date">End Date (optional)</Label>
@@ -315,19 +315,6 @@ export function TaskForm({ open, onOpenChange, task, allTags, onSubmit, isLoadin
                 : 'Create Task'}
             </Button>
           </DialogFooter>
-          {/* Debug: Show all errors - only showing message fields to avoid circular references */}
-          {Object.keys(errors).length > 0 && (
-            <div className="text-xs text-orange-600 bg-orange-50 p-2 rounded mb-2">
-              <strong>Debug - Error Messages:</strong>
-              <pre>{JSON.stringify(
-                Object.fromEntries(
-                  Object.entries(errors).map(([key, value]: [string, any]) => [key, value?.message])
-                ),
-                null,
-                2
-              )}</pre>
-            </div>
-          )}
         </form>
       </DialogContent>
     </Dialog>

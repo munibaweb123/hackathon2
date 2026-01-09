@@ -1,0 +1,61 @@
+# Patterns to ignore when building packages
+# This supports shell glob matching, relative path matching, and
+# negation (prefixed with !). Only one pattern per line.
+
+# Common patterns
+.DS_Store
+.git/
+.gitignore
+.helmignore
+.hg/
+.hgignore
+.svn/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# CI/CD
+.github/
+.gitlab/
+.circleci/
+.travis.yml
+
+# Documentation
+*.md
+docs/
+specs/
+history/
+.specify/
+
+# Testing
+tests/
+coverage/
+*.test.*
+*.spec.*
+
+# Development files
+*.log
+*.tmp
+*.temp
+.env
+.env.*
+
+# Language-specific
+__pycache__/
+*.py[cod]
+node_modules/
+.next/
+dist/
+build/
+
+# Kubernetes secrets (never include in charts)
+*.secret.yaml
+secrets/
+*.key
+*.crt
+*.pem
+kubeconfig*
