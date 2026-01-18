@@ -184,31 +184,73 @@ async def add_task(
         session.close()
 
 
+def find_task_by_title(session: Session, user_id: str, title: str) -> Optional[Task]:
+    """
+    Find a task by title (case-insensitive, partial match).
+    Returns the best matching task or None if no match found.
+    """
+    # First try exact match (case-insensitive)
+    query = select(Task).where(
+        Task.user_id == user_id,
+        Task.title.ilike(title)
+    )
+    task = session.exec(query).first()
+    if task:
+        return task
+
+    # Try partial match (title contains the search term)
+    query = select(Task).where(
+        Task.user_id == user_id,
+        Task.title.ilike(f"%{title}%")
+    )
+    tasks = session.exec(query).all()
+
+    if len(tasks) == 1:
+        return tasks[0]
+    elif len(tasks) > 1:
+        # Return the one with shortest title (most specific match)
+        return min(tasks, key=lambda t: len(t.title))
+
+    return None
+
+
 @function_tool
 async def complete_task(
     ctx: RunContextWrapper[AgentContext],
-    task_id: int
+    task_id: Optional[int] = None,
+    task_title: Optional[str] = None
 ) -> str:
     """Mark a task as complete.
 
     Args:
-        task_id: The ID of the task to complete.
+        task_id: The ID of the task to complete (optional if task_title provided).
+        task_title: The title of the task to complete (optional if task_id provided).
     """
+    if task_id is None and task_title is None:
+        return "Please provide either a task ID or task title."
+
     user_id = ctx.context.request_context.get("user_id")
 
     session_gen = get_session()
     session: Session = next(session_gen)
 
     try:
-        # Find the task
-        task = session.get(Task, task_id)
+        task = None
 
-        if not task:
-            return f"Task with ID {task_id} not found."
+        # Find the task by ID if provided
+        if task_id is not None:
+            task = session.get(Task, task_id)
+            if not task:
+                return f"Task with ID {task_id} not found."
+        # Otherwise find by title
+        elif task_title is not None:
+            task = find_task_by_title(session, user_id, task_title)
+            if not task:
+                return f"Task with title '{task_title}' not found."
 
         # Verify ownership
         if task.user_id != user_id:
-            return f"You don't have permission to modify task {task_id}."
+            return f"You don't have permission to modify this task."
 
         # Mark as completed
         task.completed = True
@@ -228,34 +270,46 @@ async def complete_task(
 @function_tool
 async def delete_task(
     ctx: RunContextWrapper[AgentContext],
-    task_id: int
+    task_id: Optional[int] = None,
+    task_title: Optional[str] = None
 ) -> str:
     """Delete a task from the user's list.
 
     Args:
-        task_id: The ID of the task to delete.
+        task_id: The ID of the task to delete (optional if task_title provided).
+        task_title: The title of the task to delete (optional if task_id provided).
     """
+    if task_id is None and task_title is None:
+        return "Please provide either a task ID or task title."
+
     user_id = ctx.context.request_context.get("user_id")
 
     session_gen = get_session()
     session: Session = next(session_gen)
 
     try:
-        # Find the task
-        task = session.get(Task, task_id)
+        task = None
 
-        if not task:
-            return f"Task with ID {task_id} not found."
+        # Find the task by ID if provided
+        if task_id is not None:
+            task = session.get(Task, task_id)
+            if not task:
+                return f"Task with ID {task_id} not found."
+        # Otherwise find by title
+        elif task_title is not None:
+            task = find_task_by_title(session, user_id, task_title)
+            if not task:
+                return f"Task with title '{task_title}' not found."
 
         # Verify ownership
         if task.user_id != user_id:
-            return f"You don't have permission to delete task {task_id}."
+            return f"You don't have permission to delete this task."
 
-        task_title = task.title
+        deleted_title = task.title
         session.delete(task)
         session.commit()
 
-        return f"Deleted task: {task_title}"
+        return f"Deleted task: {deleted_title}"
 
     except Exception as e:
         session.rollback()
@@ -267,17 +321,22 @@ async def delete_task(
 @function_tool
 async def update_task(
     ctx: RunContextWrapper[AgentContext],
-    task_id: int,
+    task_id: Optional[int] = None,
+    task_title: Optional[str] = None,
     title: Optional[str] = None,
     description: Optional[str] = None
 ) -> str:
     """Update a task's title or description.
 
     Args:
-        task_id: The ID of the task to update.
+        task_id: The ID of the task to update (optional if task_title provided).
+        task_title: The current title of the task to find and update (optional if task_id provided).
         title: New title for the task (optional).
         description: New description for the task (optional).
     """
+    if task_id is None and task_title is None:
+        return "Please provide either a task ID or task title to identify the task."
+
     user_id = ctx.context.request_context.get("user_id")
 
     if not title and description is None:
@@ -287,15 +346,22 @@ async def update_task(
     session: Session = next(session_gen)
 
     try:
-        # Find the task
-        task = session.get(Task, task_id)
+        task = None
 
-        if not task:
-            return f"Task with ID {task_id} not found."
+        # Find the task by ID if provided
+        if task_id is not None:
+            task = session.get(Task, task_id)
+            if not task:
+                return f"Task with ID {task_id} not found."
+        # Otherwise find by title
+        elif task_title is not None:
+            task = find_task_by_title(session, user_id, task_title)
+            if not task:
+                return f"Task with title '{task_title}' not found."
 
         # Verify ownership
         if task.user_id != user_id:
-            return f"You don't have permission to update task {task_id}."
+            return f"You don't have permission to update this task."
 
         # Update fields
         if title:

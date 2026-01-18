@@ -8,6 +8,7 @@ from sqlmodel import Session, select, col
 from ..core.database import get_session
 from ..core.auth import get_current_user, AuthenticatedUser, verify_user_access
 from ..models.task import Task, Priority
+from ..models.enums import TaskStatus
 from ..schemas.task import RecurrencePattern
 from ..schemas.task import TaskCreate, TaskUpdate, TaskResponse, TaskListResponse
 from ..utils.recurrence import generate_recurring_tasks
@@ -331,17 +332,37 @@ async def update_task(
     update_data = task_data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         if key == "priority" and value is not None:
-            setattr(task, key, Priority(value.value))
+            # Convert the priority value properly - value is already the string value from the schema
+            setattr(task, key, Priority(value))
+        elif key == "completed" and value is not None:
+            # When updating completed field, also update the status field for consistency
+            setattr(task, key, value)
+            # Update status to match completed state
+            if value:
+                task.status = TaskStatus.COMPLETED
+            else:
+                task.status = TaskStatus.PENDING
         elif key == "recurrence_pattern" and value is not None:
             try:
-                setattr(task, key, RecurrencePattern(value))
+                # Check if value is already a RecurrencePattern enum, if not convert it
+                if isinstance(value, RecurrencePattern):
+                    setattr(task, key, value.value)  # Store as string value
+                else:
+                    enum_value = RecurrencePattern(value)
+                    setattr(task, key, enum_value.value)  # Store as string value
             except ValueError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Invalid recurrence_pattern: {value}. Must be one of: daily, weekly, biweekly, monthly, yearly, custom"
                 )
         else:
-            setattr(task, key, value)
+            # Check if the field exists on the model before setting it to avoid errors
+            if hasattr(task, key) or key in task.__dict__ or (hasattr(type(task), '__annotations__') and key in type(task).__annotations__):
+                setattr(task, key, value)
+            else:
+                # For fields that don't exist on the model, skip them to avoid errors
+                # These might be stored separately in the recurrence_patterns table
+                print(f"Warning: Skipping field {key} as it doesn't exist on Task model")
 
     task.updated_at = datetime.utcnow()
 

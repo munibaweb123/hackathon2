@@ -54,6 +54,11 @@ class Task(SQLModel, table=True):
     # Recurring task flag (added via migration)
     is_recurring: bool = Field(default=False)
 
+    # Recurrence fields (added via migration) - stored directly on task for simpler access
+    recurrence_pattern: Optional[str] = Field(default=None, max_length=20)
+    recurrence_interval: Optional[int] = Field(default=1, ge=1)
+    recurrence_end_date: Optional[datetime] = Field(default=None)
+
     # Legacy field for backward compatibility
     completed: bool = Field(default=False)
 

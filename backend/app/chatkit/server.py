@@ -1,6 +1,7 @@
 """ChatKit server implementation for the todo application following OpenAI ChatKit SDK patterns."""
 
 import logging
+import re
 from typing import Any, Dict
 from .server_interface import ChatKitServer, StreamingResult
 from .types import ChatKitRequest, ChatKitActionRequest, ChatKitResponse, ChatKitActionResponse
@@ -128,7 +129,6 @@ class TodoChatKitServer(ChatKitServer):
         elif any(keyword in input_lower for keyword in ["add task", "create task", "new task", "add a task"]):
             logger.info(f"User {user_id} requested to add a task")
             # Extract task details from the input - use original input to preserve case
-            import re
 
             # Try to extract title using various patterns
             title = ""
@@ -196,7 +196,6 @@ class TodoChatKitServer(ChatKitServer):
         elif any(keyword in input_lower for keyword in ["complete", "finish", "done", "mark complete"]):
             logger.info(f"User {user_id} requested to complete a task")
             # Extract task ID from the input (simplified approach)
-            import re
             task_id_match = re.search(r'task (\d+)', input_lower) or re.search(r'(\d+)', input_lower)
             if task_id_match:
                 task_id = int(task_id_match.group(1))
@@ -228,7 +227,6 @@ class TodoChatKitServer(ChatKitServer):
         elif any(keyword in input_lower for keyword in ["delete", "remove", "remove task"]):
             logger.info(f"User {user_id} requested to delete a task")
             # Extract task ID from the input (simplified approach)
-            import re
             task_id_match = re.search(r'task (\d+)', input_lower) or re.search(r'(\d+)', input_lower)
             if task_id_match:
                 task_id = int(task_id_match.group(1))
@@ -316,7 +314,6 @@ class TodoChatKitServer(ChatKitServer):
         elif any(keyword in input_lower for keyword in ["update", "edit", "change", "add description", "set description", "add note"]):
             logger.info(f"User {user_id} requested to update a task")
             # Extract task ID and update details from the input
-            import re
 
             # Pattern for "add description 'text' of task 'title'"
             desc_task_pattern = r'add\s+description\s+[\'"]([^\'"]+)[\'"]\s+of\s+task\s+[\'"]([^\'"]+)[\'"]'
@@ -392,17 +389,38 @@ class TodoChatKitServer(ChatKitServer):
                         "context": [msg.content for msg in conversation_context[:5]]
                     }
 
-            # Pattern for "update task XX with description 'text'"
+            # Pattern for "update task XX with description 'text'" (with quotes)
             update_desc_pattern = r'update\s+task\s+(\d+)\s+with\s+description\s+[\'"]([^\'"]+)[\'"]'
             match = re.search(update_desc_pattern, input, re.IGNORECASE)
+
+            # Also try pattern without quotes: "update task XX with description text"
+            if not match:
+                update_desc_no_quotes_pattern = r'update\s+task\s+(\d+)\s+with\s+description\s+(.+)$'
+                match = re.search(update_desc_no_quotes_pattern, input, re.IGNORECASE)
+
             if match:
                 task_id = int(match.group(1))
-                description = match.group(2)
+                description = match.group(2).strip().strip('"\'')  # Remove any quotes
+
+                logger.info(f"Matched update pattern: task_id={task_id}, description='{description}'")
 
                 # Update the task with the new description
-                result = await update_task_for_user(task_id, user_id, agent_context=agent_context, description=description)
+                try:
+                    result = await update_task_for_user(task_id, user_id, agent_context=agent_context, description=description)
+                    logger.info(f"update_task_for_user result: {result}")
+                except Exception as e:
+                    logger.error(f"Exception in update_task_for_user: {str(e)}")
+                    return {
+                        "status": "error",
+                        "thread_id": thread_id,
+                        "user_id": user_id,
+                        "input": input,
+                        "response_type": "error",
+                        "message": f"Error updating task: {str(e)}",
+                        "context": []
+                    }
 
-                if 'task' in result:
+                if result and 'task' in result:
                     logger.info(f"Task {task_id} updated with description for user {user_id}")
                     return {
                         "status": "success",
@@ -411,18 +429,19 @@ class TodoChatKitServer(ChatKitServer):
                         "input": input,
                         "response_type": "task_updated",
                         "data": result,
-                        "context": [msg.content for msg in conversation_context[:5]]
+                        "context": []
                     }
                 else:
-                    logger.info(f"Failed to update task {task_id} for user {user_id}")
+                    error_msg = result.get('message', f"Could not find task with ID {task_id}.") if result else f"Could not find task with ID {task_id}."
+                    logger.info(f"Failed to update task {task_id} for user {user_id}: {error_msg}")
                     return {
                         "status": "success",
                         "thread_id": thread_id,
                         "user_id": user_id,
                         "input": input,
                         "response_type": "task_not_found",
-                        "message": f"Could not find task with ID {task_id}.",
-                        "context": [msg.content for msg in conversation_context[:5]]
+                        "message": error_msg,
+                        "context": []
                     }
 
             # Pattern for "set description of task XX to 'text'"
@@ -999,6 +1018,9 @@ class TodoChatKitServer(ChatKitServer):
                 elif response_type == 'task_not_found':
                     yield json.dumps({"type": "message", "data": {"content": result.get('message', 'Task not found.')}})
 
+                elif response_type == 'error':
+                    yield json.dumps({"type": "message", "data": {"content": result.get('message', 'An error occurred.')}})
+
                 elif response_type == 'general':
                     # For unrecognized commands, provide helpful response
                     yield json.dumps({"type": "message", "data": {"content": f"I'm not sure what you mean by '{input_text}'. Try:\n• 'Show my tasks' to see your tasks\n• 'Add task [name]' to create a task\n• 'Help' to see all commands"}})
@@ -1020,10 +1042,12 @@ class TodoChatKitServer(ChatKitServer):
 
             return StreamingResult(generate_error())
         except Exception as e:
-            logger.error(f"Error processing request: {str(e)}")
+            import traceback
+            error_trace = traceback.format_exc()
+            logger.error(f"Error processing request: {str(e)}\n{error_trace}")
 
             async def generate_error():
-                yield json.dumps({"type": "message", "data": {"content": f"Sorry, I encountered an error. Please try again."}})
+                yield json.dumps({"type": "message", "data": {"content": f"Sorry, I encountered an error: {str(e)}"}})
                 yield json.dumps({"type": "completion", "data": {"status": "error"}})
 
             return StreamingResult(generate_error())
