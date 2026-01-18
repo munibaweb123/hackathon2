@@ -1,0 +1,31 @@
+# ===================================
+# Development Dockerfile for FastAPI Backend
+# Optimized for hot-reloading and fast feedback loops
+# ===================================
+
+FROM python:3.13-slim
+
+WORKDIR /app
+
+# Install development dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code (will be overridden by volume mount)
+COPY . .
+
+# Development environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+EXPOSE 8000
+
+# Development command with auto-reload
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

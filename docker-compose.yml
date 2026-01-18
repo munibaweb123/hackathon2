@@ -1,32 +1,40 @@
+# ===================================
+# Development Docker Compose Configuration
+# Optimized for fast feedback loops with hot-reloading
+# ===================================
+
 version: "3.8"
 
 services:
-  # Backend API service
+  # Backend API service (development)
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: hackathon-todo-backend
     ports:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/hackathon_todo
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
-      - CORS_ORIGINS=http://localhost:3000
+      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+      - BETTER_AUTH_URL=http://localhost:3000
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - DEBUG=true
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - ./backend:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      - /app/__pycache__
     networks:
       - hackathon-network
 
-  # Frontend Next.js service
+  # Frontend Next.js service (development)
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: hackathon-todo-frontend
     ports:
       - "3000:3000"
@@ -34,13 +42,13 @@ services:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-dev-auth-secret}
       - BETTER_AUTH_URL=http://localhost:3000
+      - WATCHPACK_POLLING=true
     depends_on:
       - backend
     volumes:
       - ./frontend:/app
       - /app/node_modules
       - /app/.next
-    command: npm run dev
     networks:
       - hackathon-network
 
@@ -57,7 +65,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hackathon_todo"]
       interval: 5s
       timeout: 5s
       retries: 5
