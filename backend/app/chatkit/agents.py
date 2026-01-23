@@ -462,3 +462,184 @@ async def delete_task_for_user(task_id: int, user_id: str, agent_context: AgentC
             "message": "Unable to delete task at this moment. The system may be experiencing connectivity issues.",
             "fallback_response": "I'm sorry, I couldn't delete your task right now. Please try again in a moment or use the web interface."
         }
+
+
+async def complete_task_by_title_for_user(title: str, user_id: str, completed: bool = True, agent_context: AgentContext = None):
+    """
+    Mark a task as completed or incomplete by its title.
+
+    Args:
+        title: Title of the task to update
+        user_id: ID of the user who owns the task
+        completed: Whether the task is completed (default True)
+        agent_context: Agent context for widget streaming
+
+    Returns:
+        Dictionary with task completion result
+    """
+    from ..services.task_service import complete_task_by_title, get_task_by_title
+    from .widgets import WidgetFactory
+
+    try:
+        # First get the task to check if it exists
+        task = get_task_by_title(title, user_id)
+        if not task:
+            return {
+                "status": "error",
+                "message": f"Task with title '{title}' not found"
+            }
+
+        # Update the task completion status
+        updated_task = complete_task_by_title(title, user_id, completed)
+
+        if not updated_task:
+            return {
+                "status": "error",
+                "message": "Could not update task"
+            }
+
+        # If context provided, stream a success widget
+        if agent_context:
+            status_text = "completed" if completed else "marked as incomplete"
+            success_widget = WidgetFactory.create_success_confirmation_widget(
+                f"Task '{updated_task.title}' {status_text}!",
+                {"title": updated_task.title, "completed": updated_task.completed}
+            )
+            await agent_context.stream_widget(success_widget)
+
+        return {
+            "status": "success",
+            "task": updated_task.model_dump()
+        }
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error completing task '{title}' for user {user_id}: {str(e)}")
+
+        return {
+            "status": "error",
+            "message": f"Unable to complete task '{title}'. Please try again."
+        }
+
+
+async def update_task_by_title_for_user(title: str, user_id: str, agent_context: AgentContext = None, **updates):
+    """
+    Update a task by its title.
+
+    Args:
+        title: Title of the task to update
+        user_id: ID of the user who owns the task
+        agent_context: Agent context for widget streaming
+        **updates: Fields to update (new_title, description, priority, etc.)
+
+    Returns:
+        Dictionary with task update result
+    """
+    from ..services.task_service import update_task_by_title, get_task_by_title
+    from .widgets import WidgetFactory
+
+    try:
+        # First get the task to check if it exists
+        task = get_task_by_title(title, user_id)
+        if not task:
+            return {
+                "status": "error",
+                "message": f"Task with title '{title}' not found"
+            }
+
+        # Handle new_title update by renaming it to title
+        if 'new_title' in updates:
+            updates['title'] = updates.pop('new_title')
+
+        # Update the task
+        updated_task = update_task_by_title(title, user_id, **updates)
+
+        if not updated_task:
+            return {
+                "status": "error",
+                "message": "Could not update task"
+            }
+
+        # If context provided, stream a success widget
+        if agent_context:
+            success_widget = WidgetFactory.create_success_confirmation_widget(
+                f"Task '{updated_task.title}' updated successfully!",
+                {"title": updated_task.title}
+            )
+            await agent_context.stream_widget(success_widget)
+
+        return {
+            "status": "success",
+            "task": updated_task.model_dump()
+        }
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error updating task '{title}' for user {user_id}: {str(e)}")
+
+        return {
+            "status": "error",
+            "message": f"Unable to update task '{title}'. Please try again."
+        }
+
+
+async def delete_task_by_title_for_user(title: str, user_id: str, agent_context: AgentContext = None):
+    """
+    Delete a task by its title.
+
+    Args:
+        title: Title of the task to delete
+        user_id: ID of the user who owns the task
+        agent_context: Agent context for widget streaming
+
+    Returns:
+        Dictionary with task deletion result
+    """
+    from ..services.task_service import delete_task_by_title, get_task_by_title
+    from .widgets import WidgetFactory
+
+    try:
+        # First get the task to check if it exists and get its title for confirmation
+        task = get_task_by_title(title, user_id)
+        if not task:
+            return {
+                "status": "error",
+                "message": f"Task with title '{title}' not found"
+            }
+
+        task_title = task.title  # Store the exact title before deletion
+
+        # Delete the task from the database
+        success = delete_task_by_title(title, user_id)
+
+        if not success:
+            return {
+                "status": "error",
+                "message": "Could not delete task"
+            }
+
+        # If context provided, stream a success widget
+        if agent_context:
+            success_widget = WidgetFactory.create_success_confirmation_widget(
+                f"Task '{task_title}' deleted successfully!",
+                {"title": task_title}
+            )
+            await agent_context.stream_widget(success_widget)
+
+        return {
+            "status": "success",
+            "message": f"Task '{task_title}' deleted successfully",
+            "deleted_title": task_title
+        }
+
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error deleting task '{title}' for user {user_id}: {str(e)}")
+
+        return {
+            "status": "error",
+            "message": f"Unable to delete task '{title}'. Please try again."
+        }
