@@ -196,8 +196,139 @@ class TodoChatKitServer(ChatKitServer):
                 "context": [msg.content for msg in conversation_context[:5]]
             }
 
+        # Check if user wants to update a task - check BEFORE complete to avoid "completed" in description triggering complete
+        elif any(input_lower.startswith(keyword) for keyword in ["update", "edit", "change", "rename", "add description", "set description", "add note"]):
+            logger.info(f"User {user_id} requested to update a task")
+            # Extract task ID and update details from the input
+
+            # Pattern for "update task 'old title' to 'new title'" or "rename task 'old' to 'new'"
+            rename_title_pattern = r'(?:update|rename|change)\s+(?:task\s+)?[\'"]([^\'"]+)[\'"]\s+to\s+[\'"]([^\'"]+)[\'"]'
+            match = re.search(rename_title_pattern, input, re.IGNORECASE)
+            if match:
+                old_title = match.group(1)
+                new_title = match.group(2)
+                logger.info(f"Renaming task '{old_title}' to '{new_title}' for user {user_id}")
+
+                # Use title-based update function
+                result = await update_task_by_title_for_user(old_title, user_id, agent_context=agent_context, new_title=new_title)
+
+                if result.get("status") == "success":
+                    updated_title = result.get("task", {}).get("title", new_title)
+                    logger.info(f"Task renamed from '{old_title}' to '{updated_title}' for user {user_id}")
+                    return {
+                        "status": "success",
+                        "thread_id": thread_id,
+                        "user_id": user_id,
+                        "input": input,
+                        "response_type": "task_updated",
+                        "data": result,
+                        "task_title": updated_title,
+                        "context": [msg.content for msg in conversation_context[:5]]
+                    }
+                else:
+                    logger.info(f"Task with title '{old_title}' not found for user {user_id}")
+                    return {
+                        "status": "success",
+                        "thread_id": thread_id,
+                        "user_id": user_id,
+                        "input": input,
+                        "response_type": "task_not_found",
+                        "message": result.get("message", f"Could not find a task with title '{old_title}'."),
+                        "context": [msg.content for msg in conversation_context[:5]]
+                    }
+
+            # Pattern for "add description 'text' to task 'title'" or "add description 'text' of task 'title'"
+            desc_task_pattern = r'add\s+description\s+[\'"]([^\'"]+)[\'"]\s+(?:to|of)\s+(?:task\s+)?[\'"]([^\'"]+)[\'"]'
+            match = re.search(desc_task_pattern, input, re.IGNORECASE)
+            if match:
+                description = match.group(1)
+                task_title = match.group(2)
+                logger.info(f"Adding description to task '{task_title}' for user {user_id}")
+
+                # Use title-based update function
+                result = await update_task_by_title_for_user(task_title, user_id, agent_context=agent_context, description=description)
+
+                if result.get("status") == "success":
+                    updated_title = result.get("task", {}).get("title", task_title)
+                    logger.info(f"Task '{updated_title}' updated with description for user {user_id}")
+                    return {
+                        "status": "success",
+                        "thread_id": thread_id,
+                        "user_id": user_id,
+                        "input": input,
+                        "response_type": "task_updated",
+                        "data": result,
+                        "task_title": updated_title,
+                        "context": [msg.content for msg in conversation_context[:5]]
+                    }
+                else:
+                    logger.info(f"Task with title '{task_title}' not found for user {user_id}")
+                    return {
+                        "status": "success",
+                        "thread_id": thread_id,
+                        "user_id": user_id,
+                        "input": input,
+                        "response_type": "task_not_found",
+                        "message": result.get("message", f"Could not find a task with title '{task_title}'."),
+                        "context": [msg.content for msg in conversation_context[:5]]
+                    }
+
+            # Pattern for "update task 'title' with description 'text'" (with quotes)
+            update_title_desc_pattern = r'update\s+(?:task\s+)?[\'"]([^\'"]+)[\'"]\s+with\s+description\s+[\'"]([^\'"]+)[\'"]'
+            match = re.search(update_title_desc_pattern, input, re.IGNORECASE)
+
+            # Also try pattern without quotes: "update task title with description: text"
+            if not match:
+                update_no_quotes_pattern = r'update\s+(?:task\s+)?(.+?)\s+with\s+description[:\s]+(.+)$'
+                match = re.search(update_no_quotes_pattern, input, re.IGNORECASE)
+
+            if match:
+                task_title = match.group(1).strip().strip('"\'')
+                description = match.group(2).strip().strip('"\'')
+                logger.info(f"Updating task '{task_title}' with description for user {user_id}")
+
+                # Use title-based update function
+                result = await update_task_by_title_for_user(task_title, user_id, agent_context=agent_context, description=description)
+
+                if result.get("status") == "success":
+                    updated_title = result.get("task", {}).get("title", task_title)
+                    logger.info(f"Task '{updated_title}' updated with description for user {user_id}")
+                    return {
+                        "status": "success",
+                        "thread_id": thread_id,
+                        "user_id": user_id,
+                        "input": input,
+                        "response_type": "task_updated",
+                        "data": result,
+                        "task_title": updated_title,
+                        "context": [msg.content for msg in conversation_context[:5]]
+                    }
+                else:
+                    logger.info(f"Task with title '{task_title}' not found for user {user_id}")
+                    return {
+                        "status": "success",
+                        "thread_id": thread_id,
+                        "user_id": user_id,
+                        "input": input,
+                        "response_type": "task_not_found",
+                        "message": result.get("message", f"Could not find a task with title '{task_title}'."),
+                        "context": [msg.content for msg in conversation_context[:5]]
+                    }
+
+            # If no pattern matched, ask for clarification
+            logger.info(f"Update request from user {user_id} didn't match any pattern")
+            return {
+                "status": "success",
+                "thread_id": thread_id,
+                "user_id": user_id,
+                "input": input,
+                "response_type": "request_task_id",
+                "message": "Please specify which task to update. Examples:\n• update task \"title\" with description \"new description\"\n• edit task \"old title\" to \"new title\"",
+                "context": [msg.content for msg in conversation_context[:5]]
+            }
+
         # Check if user wants to complete a task
-        elif any(keyword in input_lower for keyword in ["complete", "finish", "done", "mark complete", "mark as complete", "completed"]):
+        elif any(input_lower.startswith(keyword) for keyword in ["complete", "finish", "done", "mark complete", "mark as complete"]):
             logger.info(f"User {user_id} requested to complete a task")
 
             # Try to extract task ID - only match "task N" or standalone number at end
@@ -410,293 +541,6 @@ class TodoChatKitServer(ChatKitServer):
                     "message": "Error retrieving task details.",
                     "context": [msg.content for msg in conversation_context[:5]]
                 }
-
-        # Check if user wants to update a task - enhanced pattern matching
-        elif any(keyword in input_lower for keyword in ["update", "edit", "change", "add description", "set description", "add note", "rename"]):
-            logger.info(f"User {user_id} requested to update a task")
-            # Extract task ID and update details from the input
-
-            # Pattern for "update task 'old title' to 'new title'" or "rename task 'old' to 'new'"
-            rename_title_pattern = r'(?:update|rename|change)\s+(?:task\s+)?[\'"]([^\'"]+)[\'"]\s+to\s+[\'"]([^\'"]+)[\'"]'
-            match = re.search(rename_title_pattern, input, re.IGNORECASE)
-            if match:
-                old_title = match.group(1)
-                new_title = match.group(2)
-                logger.info(f"Renaming task '{old_title}' to '{new_title}' for user {user_id}")
-
-                # Use title-based update function
-                result = await update_task_by_title_for_user(old_title, user_id, agent_context=agent_context, new_title=new_title)
-
-                if result.get("status") == "success":
-                    updated_title = result.get("task", {}).get("title", new_title)
-                    logger.info(f"Task renamed from '{old_title}' to '{updated_title}' for user {user_id}")
-                    return {
-                        "status": "success",
-                        "thread_id": thread_id,
-                        "user_id": user_id,
-                        "input": input,
-                        "response_type": "task_updated",
-                        "data": result,
-                        "task_title": updated_title,
-                        "context": [msg.content for msg in conversation_context[:5]]
-                    }
-                else:
-                    logger.info(f"Task with title '{old_title}' not found for user {user_id}")
-                    return {
-                        "status": "success",
-                        "thread_id": thread_id,
-                        "user_id": user_id,
-                        "input": input,
-                        "response_type": "task_not_found",
-                        "message": result.get("message", f"Could not find a task with title '{old_title}'."),
-                        "context": [msg.content for msg in conversation_context[:5]]
-                    }
-
-            # Pattern for "add description 'text' to task 'title'" or "add description 'text' of task 'title'"
-            desc_task_pattern = r'add\s+description\s+[\'"]([^\'"]+)[\'"]\s+(?:to|of)\s+(?:task\s+)?[\'"]([^\'"]+)[\'"]'
-            match = re.search(desc_task_pattern, input, re.IGNORECASE)
-            if match:
-                description = match.group(1)
-                task_title = match.group(2)
-                logger.info(f"Adding description to task '{task_title}' for user {user_id}")
-
-                # Use title-based update function
-                result = await update_task_by_title_for_user(task_title, user_id, agent_context=agent_context, description=description)
-
-                if result.get("status") == "success":
-                    updated_title = result.get("task", {}).get("title", task_title)
-                    logger.info(f"Task '{updated_title}' updated with description for user {user_id}")
-                    return {
-                        "status": "success",
-                        "thread_id": thread_id,
-                        "user_id": user_id,
-                        "input": input,
-                        "response_type": "task_updated",
-                        "data": result,
-                        "task_title": updated_title,
-                        "context": [msg.content for msg in conversation_context[:5]]
-                    }
-                else:
-                    logger.info(f"Task with title '{task_title}' not found for user {user_id}")
-                    return {
-                        "status": "success",
-                        "thread_id": thread_id,
-                        "user_id": user_id,
-                        "input": input,
-                        "response_type": "task_not_found",
-                        "message": result.get("message", f"Could not find a task with title '{task_title}'."),
-                        "context": [msg.content for msg in conversation_context[:5]]
-                    }
-
-            # Pattern for "update task 'title' with description 'text'" (with quotes)
-            update_title_desc_pattern = r'update\s+(?:task\s+)?[\'"]([^\'"]+)[\'"]\s+with\s+description\s+[\'"]([^\'"]+)[\'"]'
-            match = re.search(update_title_desc_pattern, input, re.IGNORECASE)
-
-            # Also try pattern without quotes: "update task title with description: text"
-            if not match:
-                update_no_quotes_pattern = r'update\s+(?:task\s+)?(.+?)\s+with\s+description[:\s]+(.+)$'
-                match = re.search(update_no_quotes_pattern, input, re.IGNORECASE)
-
-            if match:
-                task_title = match.group(1).strip().strip('"\'')
-                description = match.group(2).strip().strip('"\'')
-                logger.info(f"Updating task '{task_title}' with description for user {user_id}")
-
-                # Use title-based update function
-                result = await update_task_by_title_for_user(task_title, user_id, agent_context=agent_context, description=description)
-
-                if result.get("status") == "success":
-                    updated_title = result.get("task", {}).get("title", task_title)
-                    logger.info(f"Task '{updated_title}' updated with description for user {user_id}")
-                    return {
-                        "status": "success",
-                        "thread_id": thread_id,
-                        "user_id": user_id,
-                        "input": input,
-                        "response_type": "task_updated",
-                        "data": result,
-                        "task_title": updated_title,
-                        "context": [msg.content for msg in conversation_context[:5]]
-                    }
-                else:
-                    logger.info(f"Task with title '{task_title}' not found for user {user_id}")
-                    return {
-                        "status": "success",
-                        "thread_id": thread_id,
-                        "user_id": user_id,
-                        "input": input,
-                        "response_type": "task_not_found",
-                        "message": result.get("message", f"Could not find a task with title '{task_title}'."),
-                        "context": [msg.content for msg in conversation_context[:5]]
-                    }
-
-            # Pattern for "add description to id:XX 'text'" or "add description to task XX 'text'"
-            desc_id_pattern = r'add\s+description\s+to\s+(?:id:|task\s+)(\d+)\s+[\'"]([^\'"]+)[\'"]'
-            match = re.search(desc_id_pattern, input, re.IGNORECASE)
-            if match:
-                task_id = int(match.group(1))
-                description = match.group(2)
-
-                # Update the task with the new description
-                result = await update_task_for_user(task_id, user_id, agent_context=agent_context, description=description)
-
-                if 'task' in result:
-                    logger.info(f"Task {task_id} updated with description for user {user_id}")
-                    return {
-                        "status": "success",
-                        "thread_id": thread_id,
-                        "user_id": user_id,
-                        "input": input,
-                        "response_type": "task_updated",
-                        "data": result,
-                        "context": [msg.content for msg in conversation_context[:5]]
-                    }
-                else:
-                    logger.info(f"Failed to update task {task_id} for user {user_id}")
-                    return {
-                        "status": "success",
-                        "thread_id": thread_id,
-                        "user_id": user_id,
-                        "input": input,
-                        "response_type": "task_not_found",
-                        "message": f"Could not find task with ID {task_id}.",
-                        "context": [msg.content for msg in conversation_context[:5]]
-                    }
-
-            # Pattern for "update task XX with description 'text'" (with quotes)
-            update_desc_pattern = r'update\s+task\s+(\d+)\s+with\s+description\s+[\'"]([^\'"]+)[\'"]'
-            match = re.search(update_desc_pattern, input, re.IGNORECASE)
-
-            # Also try pattern without quotes: "update task XX with description text"
-            if not match:
-                update_desc_no_quotes_pattern = r'update\s+task\s+(\d+)\s+with\s+description\s+(.+)$'
-                match = re.search(update_desc_no_quotes_pattern, input, re.IGNORECASE)
-
-            if match:
-                task_id = int(match.group(1))
-                description = match.group(2).strip().strip('"\'')  # Remove any quotes
-
-                logger.info(f"Matched update pattern: task_id={task_id}, description='{description}'")
-
-                # Update the task with the new description
-                try:
-                    result = await update_task_for_user(task_id, user_id, agent_context=agent_context, description=description)
-                    logger.info(f"update_task_for_user result: {result}")
-                except Exception as e:
-                    logger.error(f"Exception in update_task_for_user: {str(e)}")
-                    return {
-                        "status": "error",
-                        "thread_id": thread_id,
-                        "user_id": user_id,
-                        "input": input,
-                        "response_type": "error",
-                        "message": f"Error updating task: {str(e)}",
-                        "context": []
-                    }
-
-                if result and 'task' in result:
-                    logger.info(f"Task {task_id} updated with description for user {user_id}")
-                    return {
-                        "status": "success",
-                        "thread_id": thread_id,
-                        "user_id": user_id,
-                        "input": input,
-                        "response_type": "task_updated",
-                        "data": result,
-                        "context": []
-                    }
-                else:
-                    error_msg = result.get('message', f"Could not find task with ID {task_id}.") if result else f"Could not find task with ID {task_id}."
-                    logger.info(f"Failed to update task {task_id} for user {user_id}: {error_msg}")
-                    return {
-                        "status": "success",
-                        "thread_id": thread_id,
-                        "user_id": user_id,
-                        "input": input,
-                        "response_type": "task_not_found",
-                        "message": error_msg,
-                        "context": []
-                    }
-
-            # Pattern for "set description of task XX to 'text'"
-            set_desc_pattern = r'set\s+description\s+of\s+task\s+(\d+)\s+to\s+[\'"]([^\'"]+)[\'"]'
-            match = re.search(set_desc_pattern, input, re.IGNORECASE)
-            if match:
-                task_id = int(match.group(1))
-                description = match.group(2)
-
-                # Update the task with the new description
-                result = await update_task_for_user(task_id, user_id, agent_context=agent_context, description=description)
-
-                if 'task' in result:
-                    logger.info(f"Task {task_id} description set for user {user_id}")
-                    return {
-                        "status": "success",
-                        "thread_id": thread_id,
-                        "user_id": user_id,
-                        "input": input,
-                        "response_type": "task_updated",
-                        "data": result,
-                        "context": [msg.content for msg in conversation_context[:5]]
-                    }
-                else:
-                    logger.info(f"Failed to update task {task_id} for user {user_id}")
-                    return {
-                        "status": "success",
-                        "thread_id": thread_id,
-                        "user_id": user_id,
-                        "input": input,
-                        "response_type": "task_not_found",
-                        "message": f"Could not find task with ID {task_id}.",
-                        "context": [msg.content for msg in conversation_context[:5]]
-                    }
-
-            # Pattern for simple "update task XX to 'new title'" or "change task XX to 'new title'"
-            update_title_pattern = r'(?:update|change)\s+task\s+(\d+)\s+to\s+[\'"]([^\'"]+)[\'"]'
-            match = re.search(update_title_pattern, input, re.IGNORECASE)
-            if match:
-                task_id = int(match.group(1))
-                new_title = match.group(2)
-
-                # Update the task with the new title
-                result = await update_task_for_user(task_id, user_id, agent_context=agent_context, title=new_title)
-
-                if 'task' in result:
-                    logger.info(f"Task {task_id} updated with new title for user {user_id}")
-                    return {
-                        "status": "success",
-                        "thread_id": thread_id,
-                        "user_id": user_id,
-                        "input": input,
-                        "response_type": "task_updated",
-                        "data": result,
-                        "context": [msg.content for msg in conversation_context[:5]]
-                    }
-                else:
-                    logger.info(f"Failed to update task {task_id} for user {user_id}")
-                    return {
-                        "status": "success",
-                        "thread_id": thread_id,
-                        "user_id": user_id,
-                        "input": input,
-                        "response_type": "task_not_found",
-                        "message": f"Could not find task with ID {task_id}.",
-                        "context": [msg.content for msg in conversation_context[:5]]
-                    }
-
-            # If no specific pattern matched, delegate to AI agent
-            logger.info(f"Delegating task update request to AI agent for user {user_id}")
-            # This would normally call the AI agent, but we'll return a message for now
-            # In a real implementation, we'd call the AI agent here
-            return {
-                "status": "success",
-                "thread_id": thread_id,
-                "user_id": user_id,
-                "input": input,
-                "response_type": "update_delegated_to_ai",
-                "message": "Processing your update request...",
-                "context": [msg.content for msg in conversation_context[:5]]
-            }
 
         # Default response for unrecognized commands
         logger.info(f"Unrecognized command from user {user_id}, returning general response")
