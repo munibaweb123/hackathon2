@@ -60,6 +60,106 @@ def get_task_by_id(task_id: int, user_id: str) -> Optional[Task]:
         return task
 
 
+def get_task_by_title(title: str, user_id: str, exact_match: bool = False) -> Optional[Task]:
+    """
+    Retrieve a task by its title for a specific user.
+
+    Args:
+        title: The title of the task to find
+        user_id: The ID of the user who owns the task
+        exact_match: If True, require exact title match. If False, use case-insensitive partial match.
+
+    Returns:
+        Task object if found and belongs to user, None otherwise
+    """
+    from ..core.database import engine
+    with Session(engine) as session:
+        tasks = session.exec(select(Task).where(Task.user_id == user_id)).all()
+
+        if exact_match:
+            for task in tasks:
+                if task.title == title:
+                    return task
+        else:
+            # Case-insensitive partial match
+            title_lower = title.lower()
+            for task in tasks:
+                if title_lower in task.title.lower():
+                    return task
+        return None
+
+
+def get_tasks_by_title(title: str, user_id: str) -> List[Task]:
+    """
+    Retrieve all tasks matching a title pattern for a specific user.
+
+    Args:
+        title: The title pattern to search for (case-insensitive partial match)
+        user_id: The ID of the user who owns the tasks
+
+    Returns:
+        List of Task objects matching the title pattern
+    """
+    from ..core.database import engine
+    with Session(engine) as session:
+        tasks = session.exec(select(Task).where(Task.user_id == user_id)).all()
+        title_lower = title.lower()
+        return [task for task in tasks if title_lower in task.title.lower()]
+
+
+def complete_task_by_title(title: str, user_id: str, completed: bool = True) -> Optional[Task]:
+    """
+    Mark a task as completed or incomplete by its title.
+
+    Args:
+        title: The title of the task to update
+        user_id: The ID of the user who owns the task
+        completed: Whether the task is completed (default True)
+
+    Returns:
+        Updated Task object if successful, None if task not found
+    """
+    task = get_task_by_title(title, user_id)
+    if task:
+        return update_task(task.id, user_id, completed=completed)
+    return None
+
+
+def update_task_by_title(title: str, user_id: str, **updates) -> Optional[Task]:
+    """
+    Update a task by its title.
+
+    Args:
+        title: The title of the task to update
+        user_id: The ID of the user who owns the task
+        **updates: Fields to update
+
+    Returns:
+        Updated Task object if successful, None if task not found
+    """
+    task = get_task_by_title(title, user_id)
+    if task:
+        return update_task(task.id, user_id, **updates)
+    return None
+
+
+def delete_task_by_title(title: str, user_id: str) -> bool:
+    """
+    Delete a task by its title.
+
+    Args:
+        title: The title of the task to delete
+        user_id: The ID of the user who owns the task
+
+    Returns:
+        True if task was deleted, False if task not found
+    """
+    task = get_task_by_title(title, user_id)
+    if task:
+        return delete_task(task.id, user_id)
+    return False
+
+
 def _ensure_user_exists(session: Session, user_id: str) -> None:
     """
     Ensure a user exists in the database, creating a placeholder if needed.

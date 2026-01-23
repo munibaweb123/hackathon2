@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react';
 import { Send, Bot, User, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,6 +36,14 @@ interface ChatBotProps {
   onTaskChange?: () => void;
 }
 
+// Keyboard shortcuts for accessibility (T068)
+const KEYBOARD_SHORTCUTS = {
+  SEND: 'Enter',
+  FOCUS_INPUT: '/',
+  SCROLL_UP: 'ArrowUp',
+  SCROLL_DOWN: 'ArrowDown',
+};
+
 const STARTER_PROMPTS = [
   { label: 'Show my tasks', prompt: 'Show my tasks', icon: '📋' },
   { label: 'Add a task', prompt: 'Add task ', icon: '➕' },
@@ -62,10 +70,33 @@ export function ChatBot({ userId, onTaskChange }: ChatBotProps) {
     });
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [announcementMessage, setAnnouncementMessage] = useState('');
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
+
+  // Announce messages for screen readers (T068)
+  const announceToScreenReader = useCallback((message: string) => {
+    setAnnouncementMessage(message);
+    // Clear after announcement
+    setTimeout(() => setAnnouncementMessage(''), 1000);
+  }, []);
+
+  // Global keyboard handler for accessibility (T068)
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: globalThis.KeyboardEvent) => {
+      // Press / to focus input (when not already focused)
+      if (e.key === '/' && document.activeElement !== inputRef.current) {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleGlobalKeyDown);
+    return () => document.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
 
   useEffect(() => {
@@ -174,6 +205,9 @@ export function ChatBot({ userId, onTaskChange }: ChatBotProps) {
       if (assistantMessage) {
         setMessages(prev => [...prev, assistantMessage]);
 
+        // Announce to screen reader (T068)
+        announceToScreenReader(`Assistant replied: ${assistantMessage.content.substring(0, 100)}`);
+
         // Notify parent if task might have changed
         if (messageText.toLowerCase().includes('add') ||
             messageText.toLowerCase().includes('complete') ||
@@ -245,30 +279,53 @@ export function ChatBot({ userId, onTaskChange }: ChatBotProps) {
   };
 
   return (
-    <div className="flex flex-col h-full bg-background rounded-xl border shadow-lg overflow-hidden">
+    <div
+      className="flex flex-col h-full bg-background rounded-xl border shadow-lg overflow-hidden"
+      role="region"
+      aria-label="AI Task Assistant chat interface"
+    >
+      {/* Screen reader announcements (T068) */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {announcementMessage}
+      </div>
+
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b bg-muted/30">
-        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary">
+      <header className="flex items-center gap-3 px-4 py-3 border-b bg-muted/30">
+        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-primary" aria-hidden="true">
           <Bot className="h-5 w-5 text-primary-foreground" />
         </div>
         <div>
-          <h2 className="font-semibold">AI Task Assistant</h2>
+          <h2 className="font-semibold" id="chat-heading">AI Task Assistant</h2>
           <p className="text-xs text-muted-foreground">Powered by OpenAI</p>
         </div>
-      </div>
+      </header>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto p-4 space-y-4"
+        role="log"
+        aria-label="Chat messages"
+        aria-live="polite"
+        aria-relevant="additions"
+        tabIndex={0}
+      >
         {messages.map((message) => (
-          <div
+          <article
             key={message.id}
             className={cn(
               'flex gap-3',
               message.role === 'user' ? 'justify-end' : 'justify-start'
             )}
+            aria-label={`${message.role === 'user' ? 'You' : 'Assistant'}: ${message.content.substring(0, 50)}${message.content.length > 50 ? '...' : ''}`}
           >
             {message.role === 'assistant' && (
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center" aria-hidden="true">
                 <Bot className="h-4 w-4 text-primary-foreground" />
               </div>
             )}
@@ -284,21 +341,21 @@ export function ChatBot({ userId, onTaskChange }: ChatBotProps) {
               {message.widget && renderWidget(message.widget)}
             </div>
             {message.role === 'user' && (
-              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-secondary flex items-center justify-center" aria-hidden="true">
                 <User className="h-4 w-4 text-secondary-foreground" />
               </div>
             )}
-          </div>
+          </article>
         ))}
 
         {isLoading && (
-          <div className="flex gap-3 justify-start">
-            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+          <div className="flex gap-3 justify-start" role="status" aria-label="Assistant is thinking">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary flex items-center justify-center" aria-hidden="true">
               <Bot className="h-4 w-4 text-primary-foreground" />
             </div>
             <div className="bg-muted rounded-2xl rounded-bl-md px-4 py-3">
               <div className="flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                 <span className="text-sm text-muted-foreground">Thinking...</span>
               </div>
             </div>
@@ -310,8 +367,8 @@ export function ChatBot({ userId, onTaskChange }: ChatBotProps) {
 
       {/* Starter Prompts */}
       {messages.length === 1 && (
-        <div className="px-4 pb-2">
-          <div className="flex flex-wrap gap-2">
+        <nav className="px-4 pb-2" aria-label="Quick actions">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Suggested prompts">
             {STARTER_PROMPTS.map((prompt, index) => (
               <Button
                 key={index}
@@ -319,35 +376,53 @@ export function ChatBot({ userId, onTaskChange }: ChatBotProps) {
                 size="sm"
                 className="text-xs"
                 onClick={() => handlePromptClick(prompt.prompt)}
+                aria-label={`${prompt.label} - click to ${prompt.prompt.endsWith(' ') ? 'start typing' : 'send'}`}
               >
-                <span className="mr-1">{prompt.icon}</span>
+                <span className="mr-1" aria-hidden="true">{prompt.icon}</span>
                 {prompt.label}
               </Button>
             ))}
           </div>
-        </div>
+        </nav>
       )}
 
       {/* Input */}
-      <div className="p-4 border-t bg-muted/30">
-        <form onSubmit={handleSubmit} className="flex gap-2">
+      <footer className="p-4 border-t bg-muted/30">
+        <form onSubmit={handleSubmit} className="flex gap-2" aria-label="Message input form">
+          <label htmlFor="chat-input" className="sr-only">
+            Type a message to the AI assistant
+          </label>
           <Input
+            id="chat-input"
             ref={inputRef}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Type a message..."
+            placeholder="Type a message... (Press / to focus)"
             className="flex-1 bg-background"
             disabled={isLoading}
+            aria-describedby="chat-input-help"
+            autoComplete="off"
           />
-          <Button type="submit" size="icon" disabled={isLoading || !inputValue.trim()}>
+          <span id="chat-input-help" className="sr-only">
+            Press Enter to send, press / from anywhere to focus this input
+          </span>
+          <Button
+            type="submit"
+            size="icon"
+            disabled={isLoading || !inputValue.trim()}
+            aria-label={isLoading ? "Sending message" : "Send message"}
+          >
             {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             ) : (
-              <Send className="h-4 w-4" />
+              <Send className="h-4 w-4" aria-hidden="true" />
             )}
           </Button>
         </form>
-      </div>
+        <p className="text-xs text-muted-foreground mt-2 text-center" aria-hidden="true">
+          Press <kbd className="px-1 py-0.5 bg-muted rounded text-xs">/</kbd> to focus input
+        </p>
+      </footer>
     </div>
   );
 }

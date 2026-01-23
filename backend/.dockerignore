@@ -1,16 +1,50 @@
-# Python
+# ===================================
+# Docker Ignore - Backend
+# Excludes files from Docker build context
+# ===================================
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Docker (avoid recursive copies)
+Dockerfile*
+docker-compose*.yml
+.docker/
+
+# Documentation
+*.md
+README*
+docs/
+specs/
+history/
+.specify/
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python bytecode and cache
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
 .Python
 *.egg-info/
+.eggs/
 dist/
 build/
+.mypy_cache/
+.tox/
+
+# Virtual environments
 .venv/
 venv/
-ENV/
 env/
+ENV/
 
 # Testing
 .pytest_cache/
@@ -19,28 +53,23 @@ htmlcov/
 *.cover
 .hypothesis/
 tests/
+**/tests/
 test_*.py
 *_test.py
+coverage/
 
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+# Environment files (secrets)
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# OS files
 .DS_Store
-
-# Documentation
-*.md
-README*
-docs/
-*.txt
-!requirements.txt
-
-# Git
-.git/
-.gitignore
-.gitattributes
+Thumbs.db
 
 # CI/CD
 .github/
@@ -48,16 +77,22 @@ docs/
 .travis.yml
 Jenkinsfile
 
-# Logs
-*.log
-logs/
+# Kubernetes/Helm (not needed in app image)
+infra/
+*.yaml
+!requirements.txt
 
-# Environment
-.env*
-!.env.example
-
-# Misc
+# Temp files
 *.tmp
+*.temp
 *.bak
-*.swp
-Thumbs.db
+tmp/
+temp/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Large/unnecessary files
+*.so

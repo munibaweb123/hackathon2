@@ -166,18 +166,18 @@
 
 ### Implementation for User Story 4
 
-- [ ] T072 [US4] Create SearchService using PostgreSQL tsvector/tsquery in backend/app/services/search_service.py
-- [ ] T073 [US4] Create search endpoint with full-text search capability in backend/app/api/search.py
-- [ ] T074 [US4] Add filter parameters (status, priority, tags, due_before, due_after) to list tasks endpoint in backend/app/api/tasks.py
-- [ ] T075 [US4] Add sort parameters (due_date, priority, created_at, title) to list tasks endpoint in backend/app/api/tasks.py
-- [ ] T076 [US4] Implement multi-tag filter logic in backend/app/services/task_service.py
-- [ ] T077 [US4] Implement date range filter logic in backend/app/services/task_service.py
-- [ ] T078 [US4] Create TaskFilters component with status/priority/tag selectors in frontend/src/components/tasks/TaskFilters.tsx
-- [ ] T079 [US4] Create DateRangeFilter component in frontend/src/components/tasks/DateRangeFilter.tsx
-- [ ] T080 [US4] Create SearchBar component with debounced input in frontend/src/components/tasks/SearchBar.tsx
-- [ ] T081 [US4] Create SortSelector component in frontend/src/components/tasks/SortSelector.tsx
-- [ ] T082 [US4] Integrate filter/sort components into task list page in frontend/src/app/tasks/page.tsx
-- [ ] T083 [US4] Update use-tasks hook to support filter/sort/search parameters in frontend/src/hooks/use-tasks.ts
+- [x] T072 [US4] Create SearchService using PostgreSQL tsvector/tsquery in backend/app/services/search_service.py
+- [x] T073 [US4] Create search endpoint with full-text search capability in backend/app/api/search.py
+- [x] T074 [US4] Add filter parameters (status, priority, tags, due_before, due_after) to list tasks endpoint in backend/app/api/tasks.py
+- [x] T075 [US4] Add sort parameters (due_date, priority, created_at, title) to list tasks endpoint in backend/app/api/tasks.py
+- [x] T076 [US4] Implement multi-tag filter logic in backend/app/services/task_service.py
+- [x] T077 [US4] Implement date range filter logic in backend/app/services/task_service.py
+- [x] T078 [US4] Create TaskFilters component with status/priority/tag selectors in frontend/src/components/tasks/TaskFilters.tsx
+- [x] T079 [US4] Create DateRangeFilter component in frontend/src/components/tasks/DateRangeFilter.tsx
+- [x] T080 [US4] Create SearchBar component with debounced input in frontend/src/components/tasks/SearchBar.tsx
+- [x] T081 [US4] Create SortSelector component in frontend/src/components/tasks/SortSelector.tsx
+- [x] T082 [US4] Integrate filter/sort components into task list page in frontend/src/app/tasks/page.tsx
+- [x] T083 [US4] Update use-tasks hook to support filter/sort/search parameters in frontend/src/hooks/use-tasks.ts
 
 **Checkpoint**: User Story 4 complete - full search, filter, and sort functionality
 
