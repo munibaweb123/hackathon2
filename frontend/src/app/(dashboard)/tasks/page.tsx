@@ -6,12 +6,16 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { TaskList } from '@/components/tasks/task-list';
 import { TaskForm } from '@/components/tasks/task-form';
-import { TaskFilters } from '@/components/tasks/task-filters';
+import { TaskFiltersComponent } from '@/components/tasks/TaskFilters';
+import { SearchBar } from '@/components/tasks/SearchBar';
+import { SortSelector } from '@/components/tasks/SortSelector';
+import { DateRangeFilter } from '@/components/tasks/DateRangeFilter';
 import { ReminderForm } from '@/components/reminders/reminder-form';
 import { useAuth } from '@/hooks/use-auth';
 import { useTasks } from '@/hooks/use-tasks';
 import { jwtApiClient } from '@/services/auth/api-client';
-import type { Task, CreateTaskInput, UpdateTaskInput, Reminder } from '@/types';
+import type { Task, CreateTaskInput, UpdateTaskInput, TaskSortBy, SortOrder } from '@/types';
+import { X, Filter } from 'lucide-react';
 
 export default function TasksPage() {
   const { user } = useAuth();
@@ -23,12 +27,16 @@ export default function TasksPage() {
     completedCount,
     pendingCount,
     totalCount,
+    hasActiveFilters,
     fetchTasks,
     createTask,
     updateTask,
     deleteTask,
     toggleComplete,
     updateFilters,
+    setSearch,
+    setDateRange,
+    clearFilters,
   } = useTasks();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -36,6 +44,7 @@ export default function TasksPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showReminderForm, setShowReminderForm] = useState(false);
   const [selectedTaskForReminder, setSelectedTaskForReminder] = useState<Task | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
 
   const handleCreateTask = async (data: CreateTaskInput) => {
     setIsSubmitting(true);
@@ -90,8 +99,6 @@ export default function TasksPage() {
   };
 
   const handleManageReminders = (task: Task) => {
-    // In a real implementation, this would navigate to a reminders page
-    // For now, we'll just show a toast
     toast.info(`Managing reminders for task: ${task.title}`);
   };
 
@@ -101,13 +108,15 @@ export default function TasksPage() {
       toast.success('Reminder created successfully');
       setShowReminderForm(false);
       setSelectedTaskForReminder(null);
-
-      // Refetch tasks to update the list with the new reminder
       fetchTasks();
     } catch (err) {
       console.error('Failed to create reminder:', err);
       toast.error('Failed to create reminder');
     }
+  };
+
+  const handleSortChange = (sortBy: TaskSortBy, order: SortOrder) => {
+    updateFilters({ sortBy, order });
   };
 
   return (
@@ -134,27 +143,91 @@ export default function TasksPage() {
         </Card>
       </div>
 
-      {/* Actions Row */}
-      <div className="flex flex-col sm:flex-row justify-between gap-4">
-        <TaskFilters filters={filters} onFilterChange={updateFilters} />
-        <Button onClick={() => setIsFormOpen(true)}>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="mr-2"
-          >
-            <path d="M12 5v14" />
-            <path d="M5 12h14" />
-          </svg>
-          Add Task
-        </Button>
+      {/* Search and Actions Row */}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          {/* Search Bar */}
+          <SearchBar
+            value={filters.search}
+            onChange={setSearch}
+            placeholder="Search tasks..."
+          />
+
+          {/* Action Buttons */}
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFilters(!showFilters)}
+              className={hasActiveFilters ? 'bg-primary/10' : ''}
+            >
+              <Filter className="mr-2 h-4 w-4" />
+              Filters
+              {hasActiveFilters && (
+                <span className="ml-1 rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
+                  Active
+                </span>
+              )}
+            </Button>
+            <Button onClick={() => setIsFormOpen(true)}>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="mr-2"
+              >
+                <path d="M12 5v14" />
+                <path d="M5 12h14" />
+              </svg>
+              Add Task
+            </Button>
+          </div>
+        </div>
+
+        {/* Filters Row (Collapsible) */}
+        {showFilters && (
+          <div className="flex flex-col gap-4 p-4 bg-muted/50 rounded-lg">
+            <div className="flex flex-wrap items-center gap-4">
+              {/* Status and Priority Filters */}
+              <TaskFiltersComponent filters={filters} onFilterChange={updateFilters} />
+
+              {/* Date Range Filter */}
+              <DateRangeFilter
+                dueAfter={filters.dueAfter}
+                dueBefore={filters.dueBefore}
+                onDateRangeChange={setDateRange}
+              />
+
+              {/* Sort Selector */}
+              <SortSelector
+                sortBy={filters.sortBy}
+                order={filters.order}
+                onSortChange={handleSortChange}
+              />
+            </div>
+
+            {/* Clear All Filters */}
+            {hasActiveFilters && (
+              <div className="flex justify-end">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearFilters}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="mr-1 h-4 w-4" />
+                  Clear All Filters
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Error State */}
@@ -171,7 +244,9 @@ export default function TasksPage() {
         <CardHeader>
           <CardTitle>Your Tasks</CardTitle>
           <CardDescription>
-            Manage your tasks and stay organized
+            {hasActiveFilters
+              ? `Showing ${totalCount} filtered results`
+              : 'Manage your tasks and stay organized'}
           </CardDescription>
         </CardHeader>
         <CardContent>

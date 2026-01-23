@@ -181,9 +181,36 @@ class JwtApiClient {
   // Task API methods
   async getTasks(filters?: TaskFilters): Promise<Task[]> {
     const params = new URLSearchParams();
+
+    // Status filter
     if (filters?.status && filters.status !== 'all') {
       params.append('status', filters.status);
     }
+
+    // Priority filter
+    if (filters?.priority && filters.priority !== 'all') {
+      params.append('priority', filters.priority);
+    }
+
+    // Search query
+    if (filters?.search && filters.search.trim()) {
+      params.append('q', filters.search.trim());
+    }
+
+    // Tag filter (comma-separated)
+    if (filters?.tags && filters.tags.length > 0) {
+      params.append('tags', filters.tags.join(','));
+    }
+
+    // Date range filters
+    if (filters?.dueAfter) {
+      params.append('due_after', filters.dueAfter);
+    }
+    if (filters?.dueBefore) {
+      params.append('due_before', filters.dueBefore);
+    }
+
+    // Sort parameters
     if (filters?.sortBy) {
       params.append('sort', filters.sortBy);
     }
@@ -195,6 +222,39 @@ class JwtApiClient {
       `/api/tasks${params.toString() ? '?' + params.toString() : ''}`
     );
     return response.data.tasks;
+  }
+
+  // Search tasks with full-text search
+  async searchTasks(query: string, filters?: Partial<TaskFilters>): Promise<{ tasks: Task[]; total: number }> {
+    const params = new URLSearchParams();
+    params.append('q', query);
+
+    if (filters?.status && filters.status !== 'all') {
+      params.append('status', filters.status);
+    }
+    if (filters?.priority && filters.priority !== 'all') {
+      params.append('priority', filters.priority);
+    }
+    if (filters?.tags && filters.tags.length > 0) {
+      params.append('tags', filters.tags.join(','));
+    }
+    if (filters?.dueAfter) {
+      params.append('due_after', filters.dueAfter);
+    }
+    if (filters?.dueBefore) {
+      params.append('due_before', filters.dueBefore);
+    }
+    if (filters?.sortBy) {
+      params.append('sort_by', filters.sortBy);
+    }
+    if (filters?.order) {
+      params.append('order', filters.order);
+    }
+
+    const response = await this.client.get<{ tasks: Task[]; total: number; query: string }>(
+      `/api/search?${params.toString()}`
+    );
+    return { tasks: response.data.tasks, total: response.data.total };
   }
 
   async getTask(taskId: number): Promise<Task> {

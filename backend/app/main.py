@@ -10,7 +10,7 @@ import logging
 from .core.config import settings
 from .core.database import create_db_and_tables
 from .core import jwks as jwks_module
-from .api import tasks, reminders, preferences, health, auth, auth_public, auth_routes, auth_bridge, notifications, chat
+from .api import tasks, reminders, preferences, health, auth, auth_public, auth_routes, auth_bridge, notifications, chat, search
 from .utils.reminder_scheduler import start_scheduler
 
 # Initialize rate limiter for the entire application
@@ -100,6 +100,7 @@ app.include_router(auth_routes.router, prefix="/api/auth", tags=["Authentication
 app.include_router(auth_bridge.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(notifications.router, tags=["Notifications"])
 app.include_router(chat.router, prefix="/api", tags=["Chat"])
+app.include_router(search.router, prefix=settings.API_PREFIX, tags=["Search"])
 
 # Include user profile router
 from .api.users import profile

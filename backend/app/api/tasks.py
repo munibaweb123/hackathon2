@@ -1,14 +1,16 @@
 """Task API endpoints - CRUD operations for todo items."""
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
-from sqlmodel import Session, select, col
+from sqlmodel import Session, select, col, or_
+from uuid import UUID
 
 from ..core.database import get_session
 from ..core.auth import get_current_user, AuthenticatedUser, verify_user_access
 from ..models.task import Task, Priority
 from ..models.enums import TaskStatus
+from ..models.task_tag import TaskTag
 from ..schemas.task import RecurrencePattern
 from ..schemas.task import TaskCreate, TaskUpdate, TaskResponse, TaskListResponse
 from ..utils.recurrence import generate_recurring_tasks
@@ -56,9 +58,18 @@ async def _schedule_reminder_event(
 
 @router.get("/tasks", response_model=TaskListResponse)
 async def list_tasks(
-    status_filter: Optional[str] = Query(None, alias="status"),
-    sort_by: str = Query("created_at", alias="sort"),
-    order: str = Query("desc"),
+    # Search parameter
+    q: Optional[str] = Query(None, description="Search query for title and description"),
+    # Filter parameters
+    status_filter: Optional[str] = Query(None, alias="status", description="Filter by 'completed', 'pending', or 'all'"),
+    priority_filter: Optional[str] = Query(None, alias="priority", description="Filter by 'low', 'medium', 'high', 'none', or 'all'"),
+    tags: Optional[str] = Query(None, description="Comma-separated list of tag IDs to filter by"),
+    due_before: Optional[datetime] = Query(None, description="Filter tasks due before this date (ISO format)"),
+    due_after: Optional[datetime] = Query(None, description="Filter tasks due after this date (ISO format)"),
+    # Sort parameters
+    sort_by: str = Query("created_at", alias="sort", description="Sort by 'created_at', 'due_date', 'priority', 'title', or 'updated_at'"),
+    order: str = Query("desc", description="Sort order: 'asc' or 'desc'"),
+    # Pagination
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     include_recurring: bool = Query(True, description="Include recurring task instances"),
@@ -66,42 +77,138 @@ async def list_tasks(
     session: Session = Depends(get_session),
 ) -> TaskListResponse:
     """
-    List all tasks for the authenticated user with optional filtering and sorting.
+    List all tasks for the authenticated user with search, filtering, and sorting.
 
-    - **status**: Filter by 'completed' or 'pending'
-    - **sort**: Sort by 'created_at', 'due_date', 'priority', or 'title'
+    **Search:**
+    - **q**: Full-text search in task title and description
+
+    **Filters:**
+    - **status**: Filter by 'completed', 'pending', or 'all'
+    - **priority**: Filter by 'low', 'medium', 'high', 'none', or 'all'
+    - **tags**: Comma-separated list of tag IDs (tasks matching ANY tag)
+    - **due_before**: Filter tasks due before this date (ISO format)
+    - **due_after**: Filter tasks due after this date (ISO format)
+
+    **Sorting:**
+    - **sort**: Sort by 'created_at', 'due_date', 'priority', 'title', or 'updated_at'
     - **order**: 'asc' or 'desc'
+
+    **Pagination:**
     - **page**: Page number (default: 1)
     - **page_size**: Items per page (default: 50, max: 100)
+
+    **Other:**
     - **include_recurring**: Whether to include recurring task instances (default: True)
     """
     # Build query - use the authenticated user's ID
     statement = select(Task).where(Task.user_id == current_user.id)
 
     # Don't include parent recurring tasks if we're showing instances separately
-    # Note: is_recurring is a property computed from recurrence_id, so we use recurrence_id for SQL
     if include_recurring:
         statement = statement.where((Task.recurrence_id.is_(None)) | (Task.parent_task_id.is_(None)))
     else:
         statement = statement.where(Task.recurrence_id.is_(None))
 
-    # Apply status filter
-    if status_filter == "completed":
-        statement = statement.where(Task.completed == True)
-    elif status_filter == "pending":
-        statement = statement.where(Task.completed == False)
+    # Apply search filter (full-text search on title and description)
+    if q and q.strip():
+        search_pattern = f"%{q.strip()}%"
+        statement = statement.where(
+            or_(
+                Task.title.ilike(search_pattern),
+                Task.description.ilike(search_pattern)
+            )
+        )
 
-    # Get total count before pagination
+    # Apply status filter
+    if status_filter and status_filter != "all":
+        if status_filter == "completed":
+            statement = statement.where(Task.completed == True)
+        elif status_filter == "pending":
+            statement = statement.where(Task.completed == False)
+
+    # Apply priority filter
+    if priority_filter and priority_filter != "all":
+        try:
+            priority_enum = Priority(priority_filter)
+            statement = statement.where(Task.priority == priority_enum)
+        except ValueError:
+            pass  # Ignore invalid priority values
+
+    # Apply date range filters
+    if due_after:
+        statement = statement.where(Task.due_date >= due_after)
+    if due_before:
+        statement = statement.where(Task.due_date <= due_before)
+
+    # Apply tag filter - tasks that have ANY of the specified tags
+    if tags:
+        tag_ids_list = [t.strip() for t in tags.split(",") if t.strip()]
+        if tag_ids_list:
+            valid_tag_ids = []
+            for tag_id in tag_ids_list:
+                try:
+                    valid_tag_ids.append(UUID(tag_id))
+                except ValueError:
+                    continue
+
+            if valid_tag_ids:
+                tag_subquery = (
+                    select(TaskTag.task_id)
+                    .where(TaskTag.tag_id.in_(valid_tag_ids))
+                    .distinct()
+                )
+                statement = statement.where(Task.id.in_(tag_subquery))
+
+    # Build count statement with same filters
     count_statement = select(Task).where(Task.user_id == current_user.id)
     if include_recurring:
         count_statement = count_statement.where((Task.recurrence_id.is_(None)) | (Task.parent_task_id.is_(None)))
     else:
         count_statement = count_statement.where(Task.recurrence_id.is_(None))
 
-    if status_filter == "completed":
-        count_statement = count_statement.where(Task.completed == True)
-    elif status_filter == "pending":
-        count_statement = count_statement.where(Task.completed == False)
+    if q and q.strip():
+        search_pattern = f"%{q.strip()}%"
+        count_statement = count_statement.where(
+            or_(
+                Task.title.ilike(search_pattern),
+                Task.description.ilike(search_pattern)
+            )
+        )
+
+    if status_filter and status_filter != "all":
+        if status_filter == "completed":
+            count_statement = count_statement.where(Task.completed == True)
+        elif status_filter == "pending":
+            count_statement = count_statement.where(Task.completed == False)
+
+    if priority_filter and priority_filter != "all":
+        try:
+            priority_enum = Priority(priority_filter)
+            count_statement = count_statement.where(Task.priority == priority_enum)
+        except ValueError:
+            pass
+
+    if due_after:
+        count_statement = count_statement.where(Task.due_date >= due_after)
+    if due_before:
+        count_statement = count_statement.where(Task.due_date <= due_before)
+
+    if tags:
+        tag_ids_list = [t.strip() for t in tags.split(",") if t.strip()]
+        if tag_ids_list:
+            valid_tag_ids = []
+            for tag_id in tag_ids_list:
+                try:
+                    valid_tag_ids.append(UUID(tag_id))
+                except ValueError:
+                    continue
+            if valid_tag_ids:
+                tag_subquery = (
+                    select(TaskTag.task_id)
+                    .where(TaskTag.tag_id.in_(valid_tag_ids))
+                    .distinct()
+                )
+                count_statement = count_statement.where(Task.id.in_(tag_subquery))
 
     total = len(session.exec(count_statement).all())
 
@@ -111,6 +218,7 @@ async def list_tasks(
         "due_date": Task.due_date,
         "priority": Task.priority,
         "title": Task.title,
+        "updated_at": Task.updated_at,
     }.get(sort_by, Task.created_at)
 
     if order == "asc":

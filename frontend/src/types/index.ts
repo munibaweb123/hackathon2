@@ -156,11 +156,17 @@ export interface ApiError {
 
 // Filter Types
 export type TaskStatus = 'all' | 'pending' | 'completed';
-export type TaskSortBy = 'created_at' | 'due_date' | 'priority' | 'title';
+export type TaskPriorityFilter = 'all' | 'low' | 'medium' | 'high' | 'none';
+export type TaskSortBy = 'created_at' | 'due_date' | 'priority' | 'title' | 'updated_at';
 export type SortOrder = 'asc' | 'desc';
 
 export interface TaskFilters {
   status: TaskStatus;
+  priority?: TaskPriorityFilter;
   sortBy: TaskSortBy;
   order: SortOrder;
+  search?: string;
+  tags?: string[];
+  dueBefore?: string;
+  dueAfter?: string;
 }

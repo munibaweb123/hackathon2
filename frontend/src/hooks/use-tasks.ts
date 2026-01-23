@@ -10,8 +10,13 @@ export function useTasks() {
   const [error, setError] = useState<ApiError | null>(null);
   const [filters, setFilters] = useState<TaskFilters>({
     status: 'all',
+    priority: 'all',
     sortBy: 'created_at',
     order: 'desc',
+    search: '',
+    tags: [],
+    dueBefore: undefined,
+    dueAfter: undefined,
   });
 
   const fetchTasks = useCallback(async () => {
@@ -134,6 +139,44 @@ export function useTasks() {
     setFilters((prev) => ({ ...prev, ...newFilters }));
   }, []);
 
+  // Update search query with debouncing handled by the SearchBar component
+  const setSearch = useCallback((search: string) => {
+    setFilters((prev) => ({ ...prev, search }));
+  }, []);
+
+  // Update date range
+  const setDateRange = useCallback((dueAfter?: string, dueBefore?: string) => {
+    setFilters((prev) => ({ ...prev, dueAfter, dueBefore }));
+  }, []);
+
+  // Update tags filter
+  const setTagFilter = useCallback((tags: string[]) => {
+    setFilters((prev) => ({ ...prev, tags }));
+  }, []);
+
+  // Clear all filters
+  const clearFilters = useCallback(() => {
+    setFilters({
+      status: 'all',
+      priority: 'all',
+      sortBy: 'created_at',
+      order: 'desc',
+      search: '',
+      tags: [],
+      dueBefore: undefined,
+      dueAfter: undefined,
+    });
+  }, []);
+
+  // Check if any filters are active
+  const hasActiveFilters =
+    filters.status !== 'all' ||
+    filters.priority !== 'all' ||
+    (filters.search && filters.search.trim() !== '') ||
+    (filters.tags && filters.tags.length > 0) ||
+    filters.dueBefore !== undefined ||
+    filters.dueAfter !== undefined;
+
   // Computed values
   const completedCount = tasks.filter((t) => t.completed).length;
   const pendingCount = tasks.filter((t) => !t.completed).length;
@@ -146,11 +189,16 @@ export function useTasks() {
     completedCount,
     pendingCount,
     totalCount: tasks.length,
+    hasActiveFilters,
     fetchTasks,
     createTask,
     updateTask,
     deleteTask,
     toggleComplete,
     updateFilters,
+    setSearch,
+    setDateRange,
+    setTagFilter,
+    clearFilters,
   };
 }
