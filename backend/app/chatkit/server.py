@@ -197,49 +197,38 @@ class TodoChatKitServer(ChatKitServer):
             }
 
         # Check if user wants to complete a task
-        elif any(keyword in input_lower for keyword in ["complete", "finish", "done", "mark complete"]):
+        elif any(keyword in input_lower for keyword in ["complete", "finish", "done", "mark complete", "mark as complete", "completed"]):
             logger.info(f"User {user_id} requested to complete a task")
 
-            # Try to extract task ID first
-            task_id_match = re.search(r'task (\d+)', input_lower) or re.search(r'(\d+)', input_lower)
+            # Try to extract task ID - only match "task N" or standalone number at end
+            # Don't match numbers embedded in titles like "phase 2"
+            task_id_match = re.search(r'\btask\s+(\d+)\b', input_lower) or re.search(r'(?:complete|finish|done|mark\s+(?:as\s+)?completed?)\s+(\d+)$', input_lower)
 
             # Try to extract task title in quotes: complete task "title" or complete "title"
-            task_title_match = re.search(r'(?:complete|finish|done|mark\s+complete)\s+(?:task\s+)?[\'"]([^\'"]+)[\'"]', input, re.IGNORECASE)
+            task_title_match = re.search(r'(?:complete|finish|done|mark\s+(?:as\s+)?completed?)\s+(?:task\s+)?[\'"]([^\'"]+)[\'"]', input, re.IGNORECASE)
 
             # Also try to extract title without quotes after keywords
             task_title_no_quotes = None
-            if not task_title_match and not task_id_match:
-                # Pattern: complete task <title> or complete <title>
-                no_quotes_match = re.search(r'(?:complete|finish|done|mark\s+complete)\s+(?:task\s+)?(.+)$', input, re.IGNORECASE)
+            if not task_title_match:
+                # Pattern: complete task <title> or mark as completed <title>
+                no_quotes_match = re.search(r'(?:complete|finish|done|mark\s+(?:as\s+)?completed?)\s+(?:task\s+)?(.+)$', input, re.IGNORECASE)
                 if no_quotes_match:
                     potential_title = no_quotes_match.group(1).strip()
                     # Make sure it's not just a number
                     if potential_title and not potential_title.isdigit():
                         task_title_no_quotes = potential_title
 
-            if task_id_match:
-                task_id = int(task_id_match.group(1))
-                result = await complete_task_for_user(task_id, user_id, completed=True, agent_context=agent_context)
-
-                logger.info(f"Task completion attempted for task {task_id}, user {user_id}, success: {'task' in result}")
-                return {
-                    "status": "success",
-                    "thread_id": thread_id,
-                    "user_id": user_id,
-                    "input": input,
-                    "response_type": "task_completed",
-                    "data": result,
-                    "context": [msg.content for msg in conversation_context[:5]]
-                }
-            elif task_title_match or task_title_no_quotes:
+            # Prioritize title match over ID match when title contains numbers like "phase 2"
+            if task_title_match or task_title_no_quotes:
                 task_title = task_title_match.group(1) if task_title_match else task_title_no_quotes
                 logger.info(f"Completing task by title: '{task_title}' for user {user_id}")
 
-                # Use the new title-based function
+                # Use the title-based function
                 result = await complete_task_by_title_for_user(task_title, user_id, completed=True, agent_context=agent_context)
 
                 if result.get("status") == "success":
-                    logger.info(f"Task '{task_title}' completed for user {user_id}")
+                    completed_title = result.get("task", {}).get("title", task_title)
+                    logger.info(f"Task '{completed_title}' completed for user {user_id}")
                     return {
                         "status": "success",
                         "thread_id": thread_id,
@@ -247,6 +236,7 @@ class TodoChatKitServer(ChatKitServer):
                         "input": input,
                         "response_type": "task_completed",
                         "data": result,
+                        "task_title": completed_title,
                         "context": [msg.content for msg in conversation_context[:5]]
                     }
                 else:
@@ -260,6 +250,20 @@ class TodoChatKitServer(ChatKitServer):
                         "message": result.get("message", f"Could not find a task with title '{task_title}'."),
                         "context": [msg.content for msg in conversation_context[:5]]
                     }
+            elif task_id_match:
+                task_id = int(task_id_match.group(1))
+                result = await complete_task_for_user(task_id, user_id, completed=True, agent_context=agent_context)
+
+                logger.info(f"Task completion attempted for task {task_id}, user {user_id}, success: {'task' in result}")
+                return {
+                    "status": "success",
+                    "thread_id": thread_id,
+                    "user_id": user_id,
+                    "input": input,
+                    "response_type": "task_completed",
+                    "data": result,
+                    "context": [msg.content for msg in conversation_context[:5]]
+                }
             else:
                 logger.info(f"User {user_id} did not specify a task ID or title for completion")
                 return {
@@ -276,15 +280,15 @@ class TodoChatKitServer(ChatKitServer):
         elif any(keyword in input_lower for keyword in ["delete", "remove", "remove task"]):
             logger.info(f"User {user_id} requested to delete a task")
 
-            # Try to extract task ID first
-            task_id_match = re.search(r'task (\d+)', input_lower) or re.search(r'(\d+)', input_lower)
+            # Try to extract task ID - only match "task N" or standalone number at end
+            task_id_match = re.search(r'\btask\s+(\d+)\b', input_lower) or re.search(r'(?:delete|remove)\s+(\d+)$', input_lower)
 
             # Try to extract task title in quotes: delete task "title" or delete "title"
             task_title_match = re.search(r'(?:delete|remove)\s+(?:task\s+)?[\'"]([^\'"]+)[\'"]', input, re.IGNORECASE)
 
             # Also try to extract title without quotes after keywords
             task_title_no_quotes = None
-            if not task_title_match and not task_id_match:
+            if not task_title_match:
                 # Pattern: delete task <title> or delete <title>
                 no_quotes_match = re.search(r'(?:delete|remove)\s+(?:task\s+)?(.+)$', input, re.IGNORECASE)
                 if no_quotes_match:
@@ -293,21 +297,8 @@ class TodoChatKitServer(ChatKitServer):
                     if potential_title and not potential_title.isdigit():
                         task_title_no_quotes = potential_title
 
-            if task_id_match:
-                task_id = int(task_id_match.group(1))
-                result = await delete_task_for_user(task_id, user_id, agent_context=agent_context)
-
-                logger.info(f"Task deletion attempted for task {task_id}, user {user_id}, success: {'message' in result}")
-                return {
-                    "status": "success",
-                    "thread_id": thread_id,
-                    "user_id": user_id,
-                    "input": input,
-                    "response_type": "task_deleted",
-                    "data": result,
-                    "context": [msg.content for msg in conversation_context[:5]]
-                }
-            elif task_title_match or task_title_no_quotes:
+            # Prioritize title match over ID match when title contains numbers like "phase 2"
+            if task_title_match or task_title_no_quotes:
                 task_title = task_title_match.group(1) if task_title_match else task_title_no_quotes
                 logger.info(f"Deleting task by title: '{task_title}' for user {user_id}")
 
@@ -338,6 +329,20 @@ class TodoChatKitServer(ChatKitServer):
                         "message": result.get("message", f"Could not find a task with title '{task_title}'."),
                         "context": [msg.content for msg in conversation_context[:5]]
                     }
+            elif task_id_match:
+                task_id = int(task_id_match.group(1))
+                result = await delete_task_for_user(task_id, user_id, agent_context=agent_context)
+
+                logger.info(f"Task deletion attempted for task {task_id}, user {user_id}, success: {'message' in result}")
+                return {
+                    "status": "success",
+                    "thread_id": thread_id,
+                    "user_id": user_id,
+                    "input": input,
+                    "response_type": "task_deleted",
+                    "data": result,
+                    "context": [msg.content for msg in conversation_context[:5]]
+                }
             else:
                 logger.info(f"User {user_id} did not specify a task ID or title for deletion")
                 return {
@@ -423,7 +428,8 @@ class TodoChatKitServer(ChatKitServer):
                 result = await update_task_by_title_for_user(old_title, user_id, agent_context=agent_context, new_title=new_title)
 
                 if result.get("status") == "success":
-                    logger.info(f"Task renamed from '{old_title}' to '{new_title}' for user {user_id}")
+                    updated_title = result.get("task", {}).get("title", new_title)
+                    logger.info(f"Task renamed from '{old_title}' to '{updated_title}' for user {user_id}")
                     return {
                         "status": "success",
                         "thread_id": thread_id,
@@ -431,6 +437,7 @@ class TodoChatKitServer(ChatKitServer):
                         "input": input,
                         "response_type": "task_updated",
                         "data": result,
+                        "task_title": updated_title,
                         "context": [msg.content for msg in conversation_context[:5]]
                     }
                 else:
@@ -457,7 +464,8 @@ class TodoChatKitServer(ChatKitServer):
                 result = await update_task_by_title_for_user(task_title, user_id, agent_context=agent_context, description=description)
 
                 if result.get("status") == "success":
-                    logger.info(f"Task '{task_title}' updated with description for user {user_id}")
+                    updated_title = result.get("task", {}).get("title", task_title)
+                    logger.info(f"Task '{updated_title}' updated with description for user {user_id}")
                     return {
                         "status": "success",
                         "thread_id": thread_id,
@@ -465,6 +473,7 @@ class TodoChatKitServer(ChatKitServer):
                         "input": input,
                         "response_type": "task_updated",
                         "data": result,
+                        "task_title": updated_title,
                         "context": [msg.content for msg in conversation_context[:5]]
                     }
                 else:
@@ -479,19 +488,26 @@ class TodoChatKitServer(ChatKitServer):
                         "context": [msg.content for msg in conversation_context[:5]]
                     }
 
-            # Pattern for "update task 'title' with description 'text'"
+            # Pattern for "update task 'title' with description 'text'" (with quotes)
             update_title_desc_pattern = r'update\s+(?:task\s+)?[\'"]([^\'"]+)[\'"]\s+with\s+description\s+[\'"]([^\'"]+)[\'"]'
             match = re.search(update_title_desc_pattern, input, re.IGNORECASE)
+
+            # Also try pattern without quotes: "update task title with description: text"
+            if not match:
+                update_no_quotes_pattern = r'update\s+(?:task\s+)?(.+?)\s+with\s+description[:\s]+(.+)$'
+                match = re.search(update_no_quotes_pattern, input, re.IGNORECASE)
+
             if match:
-                task_title = match.group(1)
-                description = match.group(2)
+                task_title = match.group(1).strip().strip('"\'')
+                description = match.group(2).strip().strip('"\'')
                 logger.info(f"Updating task '{task_title}' with description for user {user_id}")
 
                 # Use title-based update function
                 result = await update_task_by_title_for_user(task_title, user_id, agent_context=agent_context, description=description)
 
                 if result.get("status") == "success":
-                    logger.info(f"Task '{task_title}' updated with description for user {user_id}")
+                    updated_title = result.get("task", {}).get("title", task_title)
+                    logger.info(f"Task '{updated_title}' updated with description for user {user_id}")
                     return {
                         "status": "success",
                         "thread_id": thread_id,
@@ -499,6 +515,7 @@ class TodoChatKitServer(ChatKitServer):
                         "input": input,
                         "response_type": "task_updated",
                         "data": result,
+                        "task_title": updated_title,
                         "context": [msg.content for msg in conversation_context[:5]]
                     }
                 else:
@@ -1168,7 +1185,13 @@ class TodoChatKitServer(ChatKitServer):
                     yield json.dumps({"type": "message", "data": {"content": f"Sorry, I couldn't create the task: {error_msg}"}})
 
                 elif response_type == 'task_completed':
-                    task_title = result.get('data', {}).get('task', {}).get('title', 'the task')
+                    # Try multiple paths to get the task title
+                    task_title = (
+                        result.get('data', {}).get('task', {}).get('title') or
+                        result.get('data', {}).get('title') or
+                        result.get('task_title') or
+                        'the task'
+                    )
                     yield json.dumps({"type": "message", "data": {"content": f"Done! I've marked '{task_title}' as completed."}})
 
                 elif response_type == 'task_deleted':
@@ -1186,8 +1209,14 @@ class TodoChatKitServer(ChatKitServer):
                     yield json.dumps({"type": "message", "data": {"content": result.get('message', 'Please specify which task number.')}})
 
                 elif response_type == 'task_updated':
-                    task_title = result.get('data', {}).get('task', {}).get('title', 'the task')
-                    yield json.dumps({"type": "message", "data": {"content": f"Task updated: '{task_title}'"}})
+                    # Try multiple paths to get the task title
+                    task_title = (
+                        result.get('data', {}).get('task', {}).get('title') or
+                        result.get('data', {}).get('title') or
+                        result.get('task_title') or
+                        'the task'
+                    )
+                    yield json.dumps({"type": "message", "data": {"content": f"Task '{task_title}' has been updated successfully!"}})
 
                 elif response_type == 'task_details':
                     task_data = result.get('data', {}).get('task', {})
