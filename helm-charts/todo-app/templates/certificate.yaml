@@ -1,0 +1,16 @@
+{{- if and .Values.ingress.enabled .Values.ingress.tls -}}
+# Self-signed certificate for development (Minikube)
+# For production, use cert-manager with Let's Encrypt
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "todo-app.fullname" . }}-tls
+  labels:
+    {{- include "todo-app.labels" . | nindent 4 }}
+type: kubernetes.io/tls
+data:
+  # These are placeholder values - will be replaced by the setup script
+  # or cert-manager in production
+  tls.crt: {{ .Values.ingress.tlsCert | default "" | b64enc }}
+  tls.key: {{ .Values.ingress.tlsKey | default "" | b64enc }}
+{{- end }}

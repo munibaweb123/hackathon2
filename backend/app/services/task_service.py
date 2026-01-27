@@ -67,7 +67,7 @@ def get_task_by_title(title: str, user_id: str, exact_match: bool = False) -> Op
     Args:
         title: The title of the task to find
         user_id: The ID of the user who owns the task
-        exact_match: If True, require exact title match. If False, use case-insensitive partial match.
+        exact_match: If True, require exact title match. If False, try exact first, then case-insensitive partial match.
 
     Returns:
         Task object if found and belongs to user, None otherwise
@@ -76,17 +76,60 @@ def get_task_by_title(title: str, user_id: str, exact_match: bool = False) -> Op
     with Session(engine) as session:
         tasks = session.exec(select(Task).where(Task.user_id == user_id)).all()
 
+        title_lower = title.lower().strip()
+        found_task = None
+
         if exact_match:
             for task in tasks:
                 if task.title == title:
-                    return task
+                    found_task = task
+                    break
         else:
-            # Case-insensitive partial match
-            title_lower = title.lower()
+            # First try exact case-insensitive match
             for task in tasks:
-                if title_lower in task.title.lower():
-                    return task
-        return None
+                if task.title.lower().strip() == title_lower:
+                    found_task = task
+                    break
+
+            # Then try partial match (title is contained in task title)
+            if not found_task:
+                for task in tasks:
+                    if title_lower in task.title.lower():
+                        found_task = task
+                        break
+
+            # Finally, try fuzzy matching for very long titles that might have slight variations
+            if not found_task and len(title) > 10:  # Lower threshold to catch more cases
+                import difflib
+                task_titles = [(task, task.title.lower()) for task in tasks]
+
+                # Look for titles that are very similar (at least 70% match, then try lower thresholds)
+                for threshold in [0.7, 0.6, 0.5]:  # Try multiple thresholds
+                    for task, task_title_lower in task_titles:
+                        similarity = difflib.SequenceMatcher(None, title_lower, task_title_lower).ratio()
+                        if similarity >= threshold:
+                            found_task = task
+                            # Log the match for debugging
+                            import logging
+                            logger = logging.getLogger(__name__)
+                            logger.info(f"Fuzzy match found: '{title}' ~ '{task.title}' (similarity: {similarity:.2f})")
+                            break
+                    if found_task:
+                        break
+
+        # If we found a task, ensure all attributes are loaded before session closes
+        if found_task:
+            # Access key attributes to ensure they're loaded (not lazy-loaded)
+            _ = found_task.id
+            _ = found_task.title
+            _ = found_task.description
+            _ = found_task.user_id
+            _ = found_task.completed
+            _ = found_task.priority
+            # Expunge from session to make it fully detached but usable
+            session.expunge(found_task)
+
+        return found_task
 
 
 def get_tasks_by_title(title: str, user_id: str) -> List[Task]:

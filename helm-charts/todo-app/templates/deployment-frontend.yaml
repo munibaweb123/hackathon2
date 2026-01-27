@@ -20,8 +20,8 @@ spec:
       serviceAccountName: {{ include "todo-app.serviceAccountName" . }}
       securityContext:
         runAsNonRoot: true
-        runAsUser: 1001
-        fsGroup: 1001
+        runAsUser: 10001
+        fsGroup: 10001
       containers:
         - name: nextjs
           image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
@@ -41,23 +41,24 @@ spec:
               value: "3000"
             - name: HOSTNAME
               value: "0.0.0.0"
+            - name: BETTER_AUTH_SECRET
+              value: {{ .Values.secrets.betterAuthSecret | quote }}
+            - name: BETTER_AUTH_URL
+              value: "http://localhost:3000"
           startupProbe:
-            httpGet:
-              path: /api/health/live
+            tcpSocket:
               port: 3000
             failureThreshold: 30
             periodSeconds: 2
           livenessProbe:
-            httpGet:
-              path: /api/health/live
+            tcpSocket:
               port: 3000
             initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 3
           readinessProbe:
-            httpGet:
-              path: /api/health/ready
+            tcpSocket:
               port: 3000
             initialDelaySeconds: 5
             periodSeconds: 5

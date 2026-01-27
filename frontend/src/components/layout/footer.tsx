@@ -11,7 +11,7 @@ export function Footer() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ delay: 0.5 }}
-      className="border-t bg-background/50 backdrop-blur-sm"
+      className="border-t bg-background/50 backdrop-blur-sm flex-shrink-0"
     >
       <div className="container px-4 sm:px-6 py-6">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">

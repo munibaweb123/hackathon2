@@ -118,16 +118,18 @@ async def run_chatbot_agent(user_text: str, user_id: str, conversation_id: Optio
             "type": "function",
             "function": {
                 "name": "update_task",
-                "description": "Modify task title or description",
+                "description": "Modify task title, description, or priority",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "user_id": {"type": "string", "description": "The user's ID"},
-                        "task_id": {"type": "integer", "description": "The ID of the task to update"},
+                        "task_id": {"type": "integer", "description": "The ID of the task to update (optional if task_title provided)"},
+                        "task_title": {"type": "string", "description": "The title of the task to update (optional if task_id provided)"},
                         "title": {"type": "string", "description": "New title for the task (optional)"},
-                        "description": {"type": "string", "description": "New description for the task (optional)"}
+                        "description": {"type": "string", "description": "New description for the task (optional)"},
+                        "priority": {"type": "string", "enum": ["low", "medium", "high"], "description": "New priority for the task (optional)"}
                     },
-                    "required": ["user_id", "task_id"]
+                    "required": ["user_id"]
                 }
             }
         }
@@ -157,13 +159,20 @@ async def run_chatbot_agent(user_text: str, user_id: str, conversation_id: Optio
             f"- 'Mark task [id] as complete' or 'Complete task [id]' -> call complete_task\n"
             f"- 'Delete task [id]' or 'Remove task [id]' -> call delete_task\n"
             f"- 'Change task [id] to [new title]' or 'Update task [id] to [new title]' -> call update_task\n"
-            f"- 'Add description [description] of task [title]' -> call update_task with description\n"
-            f"- 'Add description to id:[id] [description]' -> call update_task with description\n"
+            f"- 'Change task [title] to [new title]' or 'Update task [title] to [new title]' -> call update_task with task_title\n"
+            f"- 'Rename task [title] to [new title]' -> call update_task with task_title\n"
+            f"- 'Add description [description] of task [title]' -> call update_task with task_title and description\n"
+            f"- 'Add description to id:[id] [description]' -> call update_task with task_id and description\n"
             f"- 'Task [id]' -> call list_tasks to show specific task details\n"
             f"- 'I need to remember to [task]' -> call add_task\n"
-            f"- 'Update task [id] with description [description]' -> call update_task\n"
-            f"- 'Add note [note] to task [id]' -> call update_task with description\n"
-            f"- 'Set description of task [id] to [description]' -> call update_task\n\n"
+            f"- 'Update task [title] with description [description]' -> call update_task with task_title\n"
+            f"- 'Update task [id] with description [description]' -> call update_task with task_id\n"
+            f"- 'Add note [note] to task [title]' -> call update_task with task_title and description\n"
+            f"- 'Set description of task [id] to [description]' -> call update_task\n"
+            f"- 'Set priority of task [title] to [priority]' -> call update_task with task_title and priority\n"
+            f"- 'Change priority of task [id] to high/medium/low' -> call update_task with task_id and priority\n"
+            f"- 'Make task [title] high priority' -> call update_task with task_title and priority='high'\n"
+            f"- 'Update task [title] priority to [priority]' -> call update_task with task_title and priority\n\n"
 
             f"When updating tasks with descriptions, preserve existing title if not specified in the update. "
             f"Always include the user_id in function calls automatically. "

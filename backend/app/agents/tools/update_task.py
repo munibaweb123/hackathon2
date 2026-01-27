@@ -13,10 +13,11 @@ def update_task(
     task_id: Optional[int] = None,
     task_title: Optional[str] = None,
     title: Optional[str] = None,
-    description: Optional[str] = None
+    description: Optional[str] = None,
+    priority: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    MCP tool to modify task title or description.
+    MCP tool to modify task title, description, or priority.
 
     Args:
         user_id: The ID of the user who owns the task
@@ -24,12 +25,18 @@ def update_task(
         task_title: The current title of the task to find and update (optional if task_id provided)
         title: New title for the task (optional)
         description: New description for the task (optional)
+        priority: New priority for the task - low, medium, or high (optional)
 
     Returns:
         Dictionary with task_id, status, and title of the updated task
     """
+    # At least one of task_id or task_title must be provided if there are updates to apply
+    # If no updates are specified, we still need a way to identify the task
     if task_id is None and task_title is None:
-        raise ValueError("Either task_id or task_title must be provided")
+        if title is None and description is None:
+            raise ValueError("Either task_id or task_title must be provided")
+        else:
+            raise ValueError("Either task_id or task_title must be provided to identify which task to update")
 
     # Get database session
     session_gen = get_session()
@@ -55,6 +62,12 @@ def update_task(
             task.title = title
         if description is not None:
             task.description = description
+        if priority is not None:
+            from app.models.task import Priority
+            try:
+                task.priority = Priority(priority.lower())
+            except ValueError:
+                pass  # Keep existing priority if invalid value provided
 
         # Commit the changes
         session.add(task)
@@ -65,7 +78,8 @@ def update_task(
         return {
             "task_id": task.id,
             "status": "updated",
-            "title": task.title
+            "title": task.title,
+            "priority": task.priority.value if task.priority else "medium"
         }
     except Exception as e:
         session.rollback()

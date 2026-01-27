@@ -64,27 +64,17 @@ export default function DashboardLayout({
   console.log('[DashboardLayout] Authenticated! Showing dashboard for:', user?.email);
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar />
-        <div className="flex-1 flex flex-col min-w-0">
-          <Header />
-          <div className="flex-1 overflow-auto">
-            <AnimatePresence mode="wait">
-              <motion.main
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                transition={{ duration: 0.3 }}
-                className="container px-4 sm:px-6 py-6 max-w-6xl"
-              >
-                {children}
-              </motion.main>
-            </AnimatePresence>
+    <div className="h-screen flex bg-background overflow-hidden">
+      <Sidebar />
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <Header />
+        <main className="flex-1 overflow-auto">
+          <div className="container px-4 sm:px-6 py-4 max-w-6xl h-full">
+            {children}
           </div>
-        </div>
+        </main>
+        <Footer />
       </div>
-      <Footer />
     </div>
   );
 }

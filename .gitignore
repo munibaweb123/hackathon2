@@ -161,5 +161,7 @@ yarn-error.log*
 # SQLite databases
 *.db
 *.sqlite
-*.sqlite3minikube-linux-amd64
-NUL
+*.sqlite3
+
+# Large binary files
+minikube-linux-amd64

@@ -536,30 +536,41 @@ async def update_task_by_title_for_user(title: str, user_id: str, agent_context:
     Returns:
         Dictionary with task update result
     """
-    from ..services.task_service import update_task_by_title, get_task_by_title
+    from ..services.task_service import update_task, get_task_by_title
     from .widgets import WidgetFactory
+    import logging
+    logger = logging.getLogger(__name__)
 
     try:
-        # First get the task to check if it exists
+        # First get the task to check if it exists and capture its ID
         task = get_task_by_title(title, user_id)
         if not task:
+            logger.info(f"Task with title '{title}' not found for user {user_id}")
             return {
                 "status": "error",
                 "message": f"Task with title '{title}' not found"
             }
 
+        # Capture the task ID before the session detaches
+        task_id = task.id
+        logger.info(f"Found task with id={task_id}, title='{task.title}' for update")
+
         # Handle new_title update by renaming it to title
         if 'new_title' in updates:
             updates['title'] = updates.pop('new_title')
+            logger.info(f"Renaming task from '{title}' to '{updates['title']}'")
 
-        # Update the task
-        updated_task = update_task_by_title(title, user_id, **updates)
+        # Update the task directly using the captured ID (avoids double lookup)
+        updated_task = update_task(task_id, user_id, **updates)
 
         if not updated_task:
+            logger.error(f"update_task returned None for task_id={task_id}, user_id={user_id}")
             return {
                 "status": "error",
                 "message": "Could not update task"
             }
+
+        logger.info(f"Task updated successfully: id={updated_task.id}, new_title='{updated_task.title}'")
 
         # If context provided, stream a success widget
         if agent_context:
@@ -575,9 +586,9 @@ async def update_task_by_title_for_user(title: str, user_id: str, agent_context:
         }
 
     except Exception as e:
-        import logging
-        logger = logging.getLogger(__name__)
+        import traceback
         logger.error(f"Error updating task '{title}' for user {user_id}: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
 
         return {
             "status": "error",

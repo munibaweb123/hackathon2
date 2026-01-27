@@ -37,21 +37,12 @@ Thumbs.db
 Jenkinsfile
 
 # Documentation
-README.md
-NOTES.txt
 docs/
 
 # Test files
-tests/
 *.test.yaml
 
 # Chart development
-ci/
 *.tgz
 *.lock
 requirements.lock
-
-# Misc
-*.md
-!Chart.yaml
-!values*.yaml

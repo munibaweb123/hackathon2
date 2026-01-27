@@ -20,8 +20,8 @@ spec:
       serviceAccountName: {{ include "todo-app.serviceAccountName" . }}
       securityContext:
         runAsNonRoot: true
-        runAsUser: 1000
-        fsGroup: 1000
+        runAsUser: 10001
+        fsGroup: 10001
       containers:
         - name: fastapi
           image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"

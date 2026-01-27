@@ -23,13 +23,11 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
-      <div className="flex-1 p-4 max-w-4xl mx-auto w-full">
-        <ChatBot
-          userId={user.id}
-          onTaskChange={handleTaskChange}
-        />
-      </div>
+    <div className="h-full max-w-4xl mx-auto w-full">
+      <ChatBot
+        userId={user.id}
+        onTaskChange={handleTaskChange}
+      />
     </div>
   );
 }

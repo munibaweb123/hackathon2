@@ -81,37 +81,85 @@ class TodoChatKitServer(ChatKitServer):
 
         agent_context = MinimalContext()
 
-        # Check for greetings and general conversation
-        greeting_keywords = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening", "hy", "hii", "hiii"]
-        if any(input_lower == keyword or input_lower.startswith(keyword + " ") for keyword in greeting_keywords):
+        # Check for greetings and general conversation (English + Urdu)
+        greeting_keywords = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening", "hy", "hii", "hiii",
+                            "سلام", "السلام علیکم", "ہیلو", "صبح بخیر", "شام بخیر"]
+        urdu_greeting = any(kw in input for kw in ["سلام", "السلام علیکم", "ہیلو", "صبح بخیر", "شام بخیر"])
+        if any(input_lower == keyword or input_lower.startswith(keyword + " ") for keyword in greeting_keywords) or urdu_greeting:
             logger.info(f"User {user_id} sent a greeting")
+            message = (
+                "السلام علیکم! میں آپ کا AI ٹاسک اسسٹنٹ ہوں۔ میں آپ کی مدد کر سکتا ہوں:\n"
+                "• \"میرے ٹاسک دکھاؤ\" - ٹاسک دیکھنے کے لیے\n"
+                "• \"ٹاسک شامل کرو [نام]\" - نیا ٹاسک بنانے کے لیے\n"
+                "• \"ٹاسک مکمل کرو [نمبر]\" - ٹاسک مکمل کرنے کے لیے\n"
+                "• \"ٹاسک حذف کرو [نمبر]\" - ٹاسک ہٹانے کے لیے\n\n"
+                "Hello! I'm your AI task assistant. I can help you manage your tasks. Try:\n"
+                "• \"Show my tasks\" - to see your tasks\n"
+                "• \"Add task [title]\" - to create a new task\n"
+                "• \"Complete task [number]\" - to mark a task as done\n"
+                "• \"Delete task [number]\" - to remove a task"
+            ) if urdu_greeting else (
+                "Hello! I'm your AI task assistant. I can help you manage your tasks. Try:\n"
+                "• \"Show my tasks\" - to see your tasks\n"
+                "• \"Add task [title]\" - to create a new task\n"
+                "• \"Complete task [number]\" - to mark a task as done\n"
+                "• \"Delete task [number]\" - to remove a task\n\n"
+                "How can I help you today?"
+            )
             return {
                 "status": "success",
                 "thread_id": thread_id,
                 "user_id": user_id,
                 "input": input,
                 "response_type": "greeting",
-                "message": "Hello! I'm your AI task assistant. I can help you manage your tasks. Try:\n• \"Show my tasks\" - to see your tasks\n• \"Add task [title]\" - to create a new task\n• \"Complete task [number]\" - to mark a task as done\n• \"Delete task [number]\" - to remove a task\n\nHow can I help you today?",
+                "message": message,
                 "context": [msg.content for msg in conversation_context[:5]]
             }
 
-        # Check for help requests
-        help_keywords = ["help", "what can you do", "how do i", "how to", "commands", "options"]
-        if any(keyword in input_lower for keyword in help_keywords):
+        # Check for help requests (English + Urdu)
+        help_keywords = ["help", "what can you do", "how do i", "how to", "commands", "options",
+                        "مدد", "کیا کر سکتے ہو", "کیسے", "احکامات"]
+        urdu_help = any(kw in input for kw in ["مدد", "کیا کر سکتے ہو", "کیسے", "احکامات"])
+        if any(keyword in input_lower for keyword in help_keywords) or urdu_help:
             logger.info(f"User {user_id} requested help")
+            message = (
+                "📋 **ٹاسک دیکھیں**\n• \"میرے ٹاسک دکھاؤ\" یا \"ٹاسک لسٹ\"\n\n"
+                "➕ **ٹاسک شامل کریں**\n• \"ٹاسک شامل کرو سامان خریدنا\"\n\n"
+                "✏️ **ٹاسک کا نام بدلیں**\n• \"rename task پرانا نام to نیا نام\"\n• \"update task \\\"پرانا نام\\\" with title \\\"نیا نام\\\"\"\n\n"
+                "🔥 **ٹاسک کی اہمیت تبدیل کریں**\n• \"update task \\\"ٹاسک کا نام\\\" with priority high\"\n\n"
+                "✅ **ٹاسک مکمل کریں**\n• \"ٹاسک مکمل کرو نام\" یا \"مکمل کرو 1\"\n\n"
+                "🗑️ **ٹاسک حذف کریں**\n• \"ٹاسک حذف کرو نام\" یا \"حذف کرو 1\"\n\n"
+                "---\n\n"
+                "📋 **View Tasks**\n• \"Show my tasks\" or \"List tasks\"\n\n"
+                "➕ **Add Tasks**\n• \"Add task buy groceries\"\n\n"
+                "✏️ **Rename Tasks**\n• \"rename task old name to new name\"\n• \"update task \\\"old name\\\" with title \\\"new name\\\"\"\n\n"
+                "🔥 **Update Priority**\n• \"update task \\\"task name\\\" with priority high\"\n\n"
+                "✅ **Complete Tasks**\n• \"Complete task 1\" or \"complete buy groceries\"\n\n"
+                "🗑️ **Delete Tasks**\n• \"Delete task 1\" or \"delete buy groceries\""
+            ) if urdu_help else (
+                "Here's what I can help you with:\n\n"
+                "📋 **View Tasks**\n• \"Show my tasks\" or \"List tasks\"\n\n"
+                "➕ **Add Tasks**\n• \"Add task buy groceries\" or \"Create task finish report\"\n\n"
+                "✏️ **Rename Tasks**\n• \"rename task old title to new title\"\n• \"update task \\\"my task\\\" to \\\"new name\\\"\"\n• \"update task \\\"my task\\\" with title \\\"new title\\\"\"\n\n"
+                "🔥 **Update Priority**\n• \"update task \\\"task name\\\" with priority high\"\n\n"
+                "✅ **Complete Tasks**\n• \"Complete task 1\" or \"Mark buy groceries as done\"\n\n"
+                "🗑️ **Delete Tasks**\n• \"Delete task 3\" or \"Remove buy groceries\"\n\n"
+                "Just type naturally and I'll understand!"
+            )
             return {
                 "status": "success",
                 "thread_id": thread_id,
                 "user_id": user_id,
                 "input": input,
                 "response_type": "help",
-                "message": "Here's what I can help you with:\n\n📋 **View Tasks**\n• \"Show my tasks\" or \"List tasks\"\n\n➕ **Add Tasks**\n• \"Add task buy groceries\" or \"Create task finish report\"\n\n✅ **Complete Tasks**\n• \"Complete task 1\" or \"Mark task 2 as done\"\n\n🗑️ **Delete Tasks**\n• \"Delete task 3\" or \"Remove task 1\"\n\nJust type naturally and I'll understand!",
+                "message": message,
                 "context": [msg.content for msg in conversation_context[:5]]
             }
 
-        # Check if user wants to see their tasks - be more specific
-        show_task_patterns = ["show task", "show my task", "list task", "list my task", "view task", "view my task", "my tasks", "show tasks", "list tasks", "view tasks"]
-        if any(pattern in input_lower for pattern in show_task_patterns):
+        # Check if user wants to see their tasks - be more specific (English + Urdu)
+        show_task_patterns_en = ["show task", "show my task", "list task", "list my task", "view task", "view my task", "my tasks", "show tasks", "list tasks", "view tasks"]
+        show_task_patterns_ur = ["میرے ٹاسک", "ٹاسک دکھاؤ", "ٹاسک لسٹ", "میری لسٹ", "کام دکھاؤ"]
+        if any(pattern in input_lower for pattern in show_task_patterns_en) or any(pattern in input for pattern in show_task_patterns_ur):
             logger.info(f"User {user_id} requested to see their tasks")
             logger.info(f"DEBUG: Fetching tasks for user_id: '{user_id}' (type: {type(user_id).__name__})")
             # Call the get_tasks_for_user function
@@ -129,40 +177,54 @@ class TodoChatKitServer(ChatKitServer):
                 "context": [msg.content for msg in conversation_context[:5]]  # Include last 5 messages for context
             }
 
-        # Check if user wants to add a task
-        elif any(keyword in input_lower for keyword in ["add task", "create task", "new task", "add a task"]):
+        # Check if user wants to add a task (English + Urdu)
+        add_task_keywords_en = ["add task", "create task", "new task", "add a task"]
+        add_task_keywords_ur = ["ٹاسک شامل کرو", "نیا ٹاسک", "کام شامل کرو", "ٹاسک بناؤ"]
+        urdu_add = any(kw in input for kw in add_task_keywords_ur)
+
+        if any(keyword in input_lower for keyword in add_task_keywords_en) or urdu_add:
             logger.info(f"User {user_id} requested to add a task")
             # Extract task details from the input - use original input to preserve case
 
             # Try to extract title using various patterns
             title = ""
 
-            # Pattern 1: "add a task to [title]" or "add task to [title]"
-            match = re.search(r'(?:add\s+(?:a\s+)?task\s+to\s+)(.+)', input, re.IGNORECASE)
-            if match:
-                title = match.group(1).strip()
-            else:
-                # Pattern 2: "add task [title]" or "create task [title]"
-                for keyword in ["add a task", "add task", "create task", "new task"]:
-                    pattern = re.compile(re.escape(keyword) + r'\s+(.+)', re.IGNORECASE)
-                    match = pattern.search(input)
-                    if match:
-                        title = match.group(1).strip()
-                        # Remove leading "to" if present (e.g., "add task to buy groceries" -> "buy groceries")
-                        if title.lower().startswith("to "):
-                            title = title[3:].strip()
+            # Urdu pattern: "ٹاسک شامل کرو [title]" or "نیا ٹاسک [title]"
+            if urdu_add:
+                for keyword in add_task_keywords_ur:
+                    if keyword in input:
+                        idx = input.find(keyword) + len(keyword)
+                        title = input[idx:].strip()
                         break
+
+            # Pattern 1: "add a task to [title]" or "add task to [title]"
+            if not title:
+                match = re.search(r'(?:add\s+(?:a\s+)?task\s+to\s+)(.+)', input, re.IGNORECASE)
+                if match:
+                    title = match.group(1).strip()
+                else:
+                    # Pattern 2: "add task [title]" or "create task [title]"
+                    for keyword in ["add a task", "add task", "create task", "new task"]:
+                        pattern = re.compile(re.escape(keyword) + r'\s+(.+)', re.IGNORECASE)
+                        match = pattern.search(input)
+                        if match:
+                            title = match.group(1).strip()
+                            # Remove leading "to" if present (e.g., "add task to buy groceries" -> "buy groceries")
+                            if title.lower().startswith("to "):
+                                title = title[3:].strip()
+                            break
 
             # If no title extracted, ask for clarification
             if not title or len(title) < 2:
                 logger.info(f"User {user_id} provided insufficient task title, requesting clarification")
+                message = "براہ کرم ٹاسک کا نام بتائیں۔" if urdu_add else "Please provide a title for the task you want to add."
                 return {
                     "status": "success",
                     "thread_id": thread_id,
                     "user_id": user_id,
                     "input": input,
                     "response_type": "request_task_details",
-                    "message": "Please provide a title for the task you want to add.",
+                    "message": message,
                     "context": [msg.content for msg in conversation_context[:5]]
                 }
 
@@ -196,25 +258,39 @@ class TodoChatKitServer(ChatKitServer):
                 "context": [msg.content for msg in conversation_context[:5]]
             }
 
-        # Check if user wants to update a task - check BEFORE complete to avoid "completed" in description triggering complete
-        elif any(input_lower.startswith(keyword) for keyword in ["update", "edit", "change", "rename", "add description", "set description", "add note"]):
-            logger.info(f"User {user_id} requested to update a task")
-            # Extract task ID and update details from the input
+        # Check if user wants to set/change priority
+        priority_match_found = False
+        priority_patterns = [
+            r'(?:set|change|update)\s+priority\s+(?:to\s+)?(high|medium|low)\s+(?:for\s+)?(?:task\s+)?[\'"]?([^\'"]+)[\'"]?',
+            r'(?:set|change|update)\s+(?:task\s+)?[\'"]?([^\'"]+)[\'"]?\s+(?:to\s+)?(high|medium|low)\s+priority',
+            r'(?:make|set)\s+(?:task\s+)?[\'"]?([^\'"]+)[\'"]?\s+(high|medium|low)\s+priority',
+            r'(?:add|set)\s+(high|medium|low)\s+priority\s+(?:to|for)\s+(?:task\s+)?[\'"]?([^\'"]+)[\'"]?',
+        ]
 
-            # Pattern for "update task 'old title' to 'new title'" or "rename task 'old' to 'new'"
-            rename_title_pattern = r'(?:update|rename|change)\s+(?:task\s+)?[\'"]([^\'"]+)[\'"]\s+to\s+[\'"]([^\'"]+)[\'"]'
-            match = re.search(rename_title_pattern, input, re.IGNORECASE)
+        for pattern in priority_patterns:
+            match = re.search(pattern, input, re.IGNORECASE)
             if match:
-                old_title = match.group(1)
-                new_title = match.group(2)
-                logger.info(f"Renaming task '{old_title}' to '{new_title}' for user {user_id}")
+                priority_match_found = True
+                groups = match.groups()
+                # Different patterns have priority and title in different positions
+                if pattern.startswith(r'(?:set|change|update)\s+priority'):
+                    priority, task_title = groups[0], groups[1]
+                elif pattern.startswith(r'(?:add|set)\s+(high'):
+                    priority, task_title = groups[0], groups[1]
+                else:
+                    task_title, priority = groups[0], groups[1]
+
+                priority = priority.lower().strip()
+                task_title = task_title.strip().strip('"\'')
+
+                logger.info(f"Setting priority '{priority}' for task '{task_title}' for user {user_id}")
 
                 # Use title-based update function
-                result = await update_task_by_title_for_user(old_title, user_id, agent_context=agent_context, new_title=new_title)
+                result = await update_task_by_title_for_user(task_title, user_id, agent_context=agent_context, priority=priority)
 
                 if result.get("status") == "success":
-                    updated_title = result.get("task", {}).get("title", new_title)
-                    logger.info(f"Task renamed from '{old_title}' to '{updated_title}' for user {user_id}")
+                    updated_title = result.get("task", {}).get("title", task_title)
+                    logger.info(f"Task '{updated_title}' priority updated to '{priority}' for user {user_id}")
                     return {
                         "status": "success",
                         "thread_id": thread_id,
@@ -223,19 +299,260 @@ class TodoChatKitServer(ChatKitServer):
                         "response_type": "task_updated",
                         "data": result,
                         "task_title": updated_title,
+                        "priority": priority,
                         "context": [msg.content for msg in conversation_context[:5]]
                     }
                 else:
-                    logger.info(f"Task with title '{old_title}' not found for user {user_id}")
+                    logger.info(f"Task with title '{task_title}' not found for user {user_id}")
                     return {
                         "status": "success",
                         "thread_id": thread_id,
                         "user_id": user_id,
                         "input": input,
                         "response_type": "task_not_found",
-                        "message": result.get("message", f"Could not find a task with title '{old_title}'."),
+                        "message": result.get("message", f"Could not find a task with title '{task_title}'."),
                         "context": [msg.content for msg in conversation_context[:5]]
                     }
+
+        # Check if user wants to update a task - check BEFORE complete to avoid "completed" in description triggering complete
+        # Urdu keywords for update operations
+        update_keywords_ur = ["ٹاسک تبدیل کرو", "نام تبدیل کرو", "ٹاسک کا نام", "عنوان تبدیل"]
+        urdu_update = any(kw in input for kw in update_keywords_ur)
+
+        if not priority_match_found and (any(input_lower.startswith(keyword) for keyword in ["update", "edit", "change", "rename", "add description", "set description", "add note"]) or urdu_update):
+            logger.info(f"User {user_id} requested to update a task")
+            # Extract task ID and update details from the input
+
+            # Variables to hold extracted titles
+            old_title = None
+            new_title = None
+
+            # Pattern 1: "update task 'old title' to 'new title'" or "rename task 'old' to 'new'" (with quotes)
+            rename_title_pattern = r'(?:update|rename|change)\s+(?:task\s+)?[\'"]([^\'"]+)[\'"]\s+(?:to|with)\s+[\'"]([^\'"]+)[\'"]'
+            match = re.search(rename_title_pattern, input, re.IGNORECASE)
+            if match:
+                old_title = match.group(1)
+                new_title = match.group(2)
+
+            # Pattern 2: "rename task old title to new title" (without quotes, using rsplit for robustness)
+            if not old_title and ' to ' in input.lower():
+                parts = input.rsplit(' to ', 1)  # Split from the right, only once
+                if len(parts) == 2:
+                    command_part = parts[0].strip()
+                    new_title_part = parts[1].strip()
+
+                    # Check if the command part starts with update/rename/change and possibly "task"
+                    cmd_match = re.match(r'(?:update|rename|change)\s+(?:task\s+)?(.+)$', command_part, re.IGNORECASE)
+                    if cmd_match:
+                        old_title_raw = cmd_match.group(1).strip().strip('"\'')
+                        new_title_raw = new_title_part.strip().strip('"\'')
+
+                        if old_title_raw and new_title_raw and len(old_title_raw) > 1 and len(new_title_raw) > 0:
+                            old_title = old_title_raw
+                            new_title = new_title_raw
+                            logger.info(f"Pattern 2 (to) matched: old='{old_title}', new='{new_title}'")
+
+            # Pattern 2b: "rename task old title with new title" (without quotes, using rsplit for robustness)
+            if not old_title and ' with ' in input.lower():
+                # Don't match if it's a description/priority/note update
+                if not any(kw in input.lower() for kw in ['with description', 'with priority', 'with note', 'with status']):
+                    parts = input.rsplit(' with ', 1)  # Split from the right, only once
+                    if len(parts) == 2:
+                        command_part = parts[0].strip()
+                        new_title_part = parts[1].strip()
+
+                        # Check if the command part starts with update/rename/change and possibly "task"
+                        cmd_match = re.match(r'(?:update|rename|change)\s+(?:task\s+)?(.+)$', command_part, re.IGNORECASE)
+                        if cmd_match:
+                            old_title_raw = cmd_match.group(1).strip().strip('"\'')
+                            new_title_raw = new_title_part.strip().strip('"\'')
+
+                            # Also handle "with title X" pattern
+                            if new_title_raw.lower().startswith('title '):
+                                new_title_raw = new_title_raw[6:].strip().strip('"\'')
+
+                            if old_title_raw and new_title_raw and len(old_title_raw) > 1 and len(new_title_raw) > 0:
+                                old_title = old_title_raw
+                                new_title = new_title_raw
+                                logger.info(f"Pattern 2b (with) matched: old='{old_title}', new='{new_title}'")
+
+            # Pattern 3: Urdu pattern for renaming
+            if not old_title and urdu_update:
+                # Try to extract old and new titles from Urdu command
+                urdu_rename_pattern = r'(?:ٹاسک\s+(?:کا\s+)?نام\s+)?(.+?)\s+(?:سے|to)\s+(.+?)(?:\s+کرو)?$'
+                urdu_match = re.search(urdu_rename_pattern, input, re.IGNORECASE)
+                if urdu_match:
+                    old_title_raw = urdu_match.group(1).strip().strip('"\'')
+                    new_title_raw = urdu_match.group(2).strip().strip('"\'')
+                    # Remove Urdu keywords from old_title if present
+                    for kw in update_keywords_ur:
+                        old_title_raw = old_title_raw.replace(kw, '').strip()
+                    if old_title_raw and new_title_raw:
+                        old_title = old_title_raw
+                        new_title = new_title_raw
+
+            if old_title and new_title:
+                logger.info(f"Renaming task '{old_title}' to '{new_title}' for user {user_id}")
+
+                # Use title-based update function
+                result = await update_task_by_title_for_user(old_title, user_id, agent_context=agent_context, new_title=new_title)
+
+                if result.get("status") == "success":
+                    updated_title = result.get("task", {}).get("title", new_title)
+                    logger.info(f"Task renamed from '{old_title}' to '{updated_title}' for user {user_id}")
+                    message = f"ٹاسک کا نام '{updated_title}' میں تبدیل کر دیا گیا!" if urdu_update else None
+                    return {
+                        "status": "success",
+                        "thread_id": thread_id,
+                        "user_id": user_id,
+                        "input": input,
+                        "response_type": "task_updated",
+                        "data": result,
+                        "task_title": updated_title,
+                        "urdu_message": message,
+                        "context": [msg.content for msg in conversation_context[:5]]
+                    }
+                else:
+                    logger.info(f"Task with title '{old_title}' not found for user {user_id}")
+                    message = f"'{old_title}' نام کا ٹاسک نہیں ملا۔" if urdu_update else result.get("message", f"Could not find a task with title '{old_title}'.")
+                    return {
+                        "status": "success",
+                        "thread_id": thread_id,
+                        "user_id": user_id,
+                        "input": input,
+                        "response_type": "task_not_found",
+                        "message": message,
+                        "context": [msg.content for msg in conversation_context[:5]]
+                    }
+
+            # NEW PATTERN: Handle "update task 'old title' with 'new title'" (for renaming, not description) - with quotes
+            update_title_with_title_pattern = r'(?:update|change|rename)\s+(?:task\s+)?[\'"]([^\'"]+)[\'"]\s+with\s+[\'"]([^\'"]+)[\'"]'
+            match = re.search(update_title_with_title_pattern, input, re.IGNORECASE)
+
+            if match:
+                old_title = match.group(1)
+                new_title = match.group(2)
+                logger.info(f"Renaming task (using 'with') from '{old_title}' to '{new_title}' for user {user_id}")
+
+                # Use title-based update function
+                result = await update_task_by_title_for_user(old_title, user_id, agent_context=agent_context, new_title=new_title)
+
+                if result.get("status") == "success":
+                    updated_title = result.get("task", {}).get("title", new_title)
+                    logger.info(f"Task renamed from '{old_title}' to '{updated_title}' for user {user_id}")
+                    message = f"ٹاسک کا نام '{updated_title}' میں تبدیل کر دیا گیا!" if urdu_update else None
+                    return {
+                        "status": "success",
+                        "thread_id": thread_id,
+                        "user_id": user_id,
+                        "input": input,
+                        "response_type": "task_updated",
+                        "data": result,
+                        "task_title": updated_title,
+                        "urdu_message": message,
+                        "context": [msg.content for msg in conversation_context[:5]]
+                    }
+                else:
+                    logger.info(f"Task with title '{old_title}' not found for user {user_id}")
+                    message = f"'{old_title}' نام کا ٹاسک نہیں ملا۔" if urdu_update else result.get("message", f"Could not find a task with title '{old_title}'.")
+                    return {
+                        "status": "success",
+                        "thread_id": thread_id,
+                        "user_id": user_id,
+                        "input": input,
+                        "response_type": "task_not_found",
+                        "message": message,
+                        "context": [msg.content for msg in conversation_context[:5]]
+                    }
+
+            # NEW PATTERN: Handle "update task old title with new title" (for renaming, not description) - without quotes
+            update_title_with_title_no_quotes_pattern = r'(?:update|change|rename)\s+(?:task\s+)?(.+?)\s+with\s+(.+)$'
+            match = re.search(update_title_with_title_no_quotes_pattern, input, re.IGNORECASE)
+
+            if match:
+                old_title_raw = match.group(1).strip().strip('"\'')
+                new_title_raw = match.group(2).strip().strip('"\'')
+
+                # Avoid matching commands like "update task with description" which should go to description update
+                # Only match if both parts look like titles (not if second part contains "description", "note", etc.)
+                second_part_lower = new_title_raw.lower()
+
+                # Check if this is a "with title" command specifically
+                if "title" in second_part_lower:
+                    # Handle "update task 'old' with title 'new'" pattern
+                    # Extract the new title after the word "title" and any quotes
+                    title_parts = new_title_raw.split("title", 1)
+                    if len(title_parts) > 1:
+                        new_title = title_parts[1].strip().strip('"\'')
+                        old_title = old_title_raw
+                        logger.info(f"Renaming task (using 'with title') from '{old_title}' to '{new_title}' for user {user_id}")
+
+                        # Use title-based update function
+                        result = await update_task_by_title_for_user(old_title, user_id, agent_context=agent_context, new_title=new_title)
+
+                        if result.get("status") == "success":
+                            updated_title = result.get("task", {}).get("title", new_title)
+                            logger.info(f"Task renamed from '{old_title}' to '{updated_title}' for user {user_id}")
+                            message = f"ٹاسک کا نام '{updated_title}' میں تبدیل کر دیا گیا!" if urdu_update else None
+                            return {
+                                "status": "success",
+                                "thread_id": thread_id,
+                                "user_id": user_id,
+                                "input": input,
+                                "response_type": "task_updated",
+                                "data": result,
+                                "task_title": updated_title,
+                                "urdu_message": message,
+                                "context": [msg.content for msg in conversation_context[:5]]
+                            }
+                        else:
+                            logger.info(f"Task with title '{old_title}' not found for user {user_id}")
+                            message = f"'{old_title}' نام کا ٹاسک نہیں ملا۔" if urdu_update else result.get("message", f"Could not find a task with title '{old_title}'.")
+                            return {
+                                "status": "success",
+                                "thread_id": thread_id,
+                                "user_id": user_id,
+                                "input": input,
+                                "response_type": "task_not_found",
+                                "message": message,
+                                "context": [msg.content for msg in conversation_context[:5]]
+                            }
+                elif not any(keyword in second_part_lower for keyword in ["description", "note", "priority", "status"]):
+                    # Handle regular "with" command (not with description/note/priority)
+                    old_title = old_title_raw
+                    new_title = new_title_raw
+                    logger.info(f"Renaming task (using 'with', no quotes) from '{old_title}' to '{new_title}' for user {user_id}")
+
+                    # Use title-based update function
+                    result = await update_task_by_title_for_user(old_title, user_id, agent_context=agent_context, new_title=new_title)
+
+                    if result.get("status") == "success":
+                        updated_title = result.get("task", {}).get("title", new_title)
+                        logger.info(f"Task renamed from '{old_title}' to '{updated_title}' for user {user_id}")
+                        message = f"ٹاسک کا نام '{updated_title}' میں تبدیل کر دیا گیا!" if urdu_update else None
+                        return {
+                            "status": "success",
+                            "thread_id": thread_id,
+                            "user_id": user_id,
+                            "input": input,
+                            "response_type": "task_updated",
+                            "data": result,
+                            "task_title": updated_title,
+                            "urdu_message": message,
+                            "context": [msg.content for msg in conversation_context[:5]]
+                        }
+                    else:
+                        logger.info(f"Task with title '{old_title}' not found for user {user_id}")
+                        message = f"'{old_title}' نام کا ٹاسک نہیں ملا۔" if urdu_update else result.get("message", f"Could not find a task with title '{old_title}'.")
+                        return {
+                            "status": "success",
+                            "thread_id": thread_id,
+                            "user_id": user_id,
+                            "input": input,
+                            "response_type": "task_not_found",
+                            "message": message,
+                            "context": [msg.content for msg in conversation_context[:5]]
+                        }
 
             # Pattern for "add description 'text' to task 'title'" or "add description 'text' of task 'title'"
             desc_task_pattern = r'add\s+description\s+[\'"]([^\'"]+)[\'"]\s+(?:to|of)\s+(?:task\s+)?[\'"]([^\'"]+)[\'"]'
@@ -315,6 +632,91 @@ class TodoChatKitServer(ChatKitServer):
                         "context": [msg.content for msg in conversation_context[:5]]
                     }
 
+            # NEW: Pattern for "update task 'title' with priority 'high/medium/low'" (with quotes)
+            update_priority_pattern = r'update\s+(?:task\s+)?[\'"]([^\'"]+)[\'"]\s+with\s+priority\s+(high|medium|low)'
+            match = re.search(update_priority_pattern, input, re.IGNORECASE)
+
+            # Also try pattern without quotes: "update task title with priority high"
+            if not match:
+                update_priority_no_quotes_pattern = r'update\s+(?:task\s+)?(.+?)\s+with\s+priority\s+(high|medium|low)'
+                match = re.search(update_priority_no_quotes_pattern, input, re.IGNORECASE)
+
+            if match:
+                task_title = match.group(1).strip().strip('"\'')
+                priority = match.group(2).strip()
+                logger.info(f"Updating task '{task_title}' with priority '{priority}' for user {user_id}")
+
+                # Use title-based update function with priority
+                result = await update_task_by_title_for_user(task_title, user_id, agent_context=agent_context, priority=priority)
+
+                if result.get("status") == "success":
+                    updated_title = result.get("task", {}).get("title", task_title)
+                    logger.info(f"Task '{updated_title}' updated with priority '{priority}' for user {user_id}")
+                    return {
+                        "status": "success",
+                        "thread_id": thread_id,
+                        "user_id": user_id,
+                        "input": input,
+                        "response_type": "task_updated",
+                        "data": result,
+                        "task_title": updated_title,
+                        "priority": priority,
+                        "context": [msg.content for msg in conversation_context[:5]]
+                    }
+                else:
+                    logger.info(f"Task with title '{task_title}' not found for user {user_id}")
+                    return {
+                        "status": "success",
+                        "thread_id": thread_id,
+                        "user_id": user_id,
+                        "input": input,
+                        "response_type": "task_not_found",
+                        "message": result.get("message", f"Could not find a task with title '{task_title}'."),
+                        "context": [msg.content for msg in conversation_context[:5]]
+                    }
+
+            # NEW: Pattern for "update task 'title' with title 'new title'" (for renaming with "with title")
+            update_title_with_title_new_pattern = r'update\s+(?:task\s+)?[\'"]([^\'"]+)[\'"]\s+with\s+title\s+[\'"]([^\'"]+)[\'"]'
+            match = re.search(update_title_with_title_new_pattern, input, re.IGNORECASE)
+
+            # Also try pattern without quotes: "update task title with title new title"
+            if not match:
+                update_title_with_title_no_quotes_pattern = r'update\s+(?:task\s+)?(.+?)\s+with\s+title\s+(.+)$'
+                match = re.search(update_title_with_title_no_quotes_pattern, input, re.IGNORECASE)
+
+            if match:
+                task_title = match.group(1).strip().strip('"\'')
+                new_title = match.group(2).strip().strip('"\'')
+                logger.info(f"Updating task '{task_title}' with new title '{new_title}' for user {user_id}")
+
+                # Use title-based update function with new title
+                result = await update_task_by_title_for_user(task_title, user_id, agent_context=agent_context, new_title=new_title)
+
+                if result.get("status") == "success":
+                    updated_title = result.get("task", {}).get("title", new_title)
+                    logger.info(f"Task '{updated_title}' updated with new title '{new_title}' for user {user_id}")
+                    return {
+                        "status": "success",
+                        "thread_id": thread_id,
+                        "user_id": user_id,
+                        "input": input,
+                        "response_type": "task_updated",
+                        "data": result,
+                        "task_title": updated_title,
+                        "context": [msg.content for msg in conversation_context[:5]]
+                    }
+                else:
+                    logger.info(f"Task with title '{task_title}' not found for user {user_id}")
+                    return {
+                        "status": "success",
+                        "thread_id": thread_id,
+                        "user_id": user_id,
+                        "input": input,
+                        "response_type": "task_not_found",
+                        "message": result.get("message", f"Could not find a task with title '{task_title}'."),
+                        "context": [msg.content for msg in conversation_context[:5]]
+                    }
+
             # If no pattern matched, ask for clarification
             logger.info(f"Update request from user {user_id} didn't match any pattern")
             return {
@@ -323,12 +725,16 @@ class TodoChatKitServer(ChatKitServer):
                 "user_id": user_id,
                 "input": input,
                 "response_type": "request_task_id",
-                "message": "Please specify which task to update. Examples:\n• update task \"title\" with description \"new description\"\n• edit task \"old title\" to \"new title\"",
+                "message": "Please specify which task to update. Examples:\n• update task \"title\" with description \"new description\"\n• edit task \"old title\" to \"new title\"\n• update task \"title\" with priority high\n• update task \"title\" with title \"new title\"",
                 "context": [msg.content for msg in conversation_context[:5]]
             }
 
-        # Check if user wants to complete a task
-        elif any(input_lower.startswith(keyword) for keyword in ["complete", "finish", "done", "mark complete", "mark as complete"]):
+        # Check if user wants to complete a task (English + Urdu)
+        complete_keywords_en = ["complete", "finish", "done", "mark complete", "mark as complete"]
+        complete_keywords_ur = ["مکمل کرو", "ٹاسک مکمل", "کام مکمل", "ہو گیا"]
+        urdu_complete = any(kw in input for kw in complete_keywords_ur)
+
+        if any(input_lower.startswith(keyword) for keyword in complete_keywords_en) or urdu_complete:
             logger.info(f"User {user_id} requested to complete a task")
 
             # Try to extract task ID - only match "task N" or standalone number at end
@@ -340,7 +746,18 @@ class TodoChatKitServer(ChatKitServer):
 
             # Also try to extract title without quotes after keywords
             task_title_no_quotes = None
-            if not task_title_match:
+
+            # Urdu title extraction: "ٹاسک مکمل کرو ادا" -> "ادا"
+            if urdu_complete and not task_title_match:
+                for keyword in complete_keywords_ur:
+                    if keyword in input:
+                        idx = input.find(keyword) + len(keyword)
+                        potential_title = input[idx:].strip()
+                        if potential_title and not potential_title.isdigit():
+                            task_title_no_quotes = potential_title
+                            break
+
+            if not task_title_match and not task_title_no_quotes:
                 # Pattern: complete task <title> or mark as completed <title>
                 no_quotes_match = re.search(r'(?:complete|finish|done|mark\s+(?:as\s+)?completed?)\s+(?:task\s+)?(.+)$', input, re.IGNORECASE)
                 if no_quotes_match:
@@ -407,8 +824,12 @@ class TodoChatKitServer(ChatKitServer):
                     "context": [msg.content for msg in conversation_context[:5]]
                 }
 
-        # Check if user wants to delete a task
-        elif any(keyword in input_lower for keyword in ["delete", "remove", "remove task"]):
+        # Check if user wants to delete a task (English + Urdu)
+        delete_keywords_en = ["delete", "remove", "remove task"]
+        delete_keywords_ur = ["حذف کرو", "ٹاسک حذف", "ہٹاؤ", "مٹاؤ", "ٹاسک مٹاؤ"]
+        urdu_delete = any(kw in input for kw in delete_keywords_ur)
+
+        if any(keyword in input_lower for keyword in delete_keywords_en) or urdu_delete:
             logger.info(f"User {user_id} requested to delete a task")
 
             # Try to extract task ID - only match "task N" or standalone number at end
@@ -419,7 +840,18 @@ class TodoChatKitServer(ChatKitServer):
 
             # Also try to extract title without quotes after keywords
             task_title_no_quotes = None
-            if not task_title_match:
+
+            # Urdu title extraction: "ٹاسک حذف کرو ادا" -> "ادا"
+            if urdu_delete and not task_title_match:
+                for keyword in delete_keywords_ur:
+                    if keyword in input:
+                        idx = input.find(keyword) + len(keyword)
+                        potential_title = input[idx:].strip()
+                        if potential_title and not potential_title.isdigit():
+                            task_title_no_quotes = potential_title
+                            break
+
+            if not task_title_match and not task_title_no_quotes:
                 # Pattern: delete task <title> or delete <title>
                 no_quotes_match = re.search(r'(?:delete|remove)\s+(?:task\s+)?(.+)$', input, re.IGNORECASE)
                 if no_quotes_match:

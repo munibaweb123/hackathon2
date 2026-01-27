@@ -1,11 +1,55 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, KeyboardEvent } from 'react';
-import { Send, Bot, User, Loader2, RefreshCw } from 'lucide-react';
+import { Send, Bot, User, Loader2, RefreshCw, Mic, MicOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { getJwtToken } from '@/lib/auth-client';
+
+// Web Speech API types
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+  resultIndex: number;
+}
+
+interface SpeechRecognitionResultList {
+  length: number;
+  item(index: number): SpeechRecognitionResult;
+  [index: number]: SpeechRecognitionResult;
+}
+
+interface SpeechRecognitionResult {
+  isFinal: boolean;
+  length: number;
+  item(index: number): SpeechRecognitionAlternative;
+  [index: number]: SpeechRecognitionAlternative;
+}
+
+interface SpeechRecognitionAlternative {
+  transcript: string;
+  confidence: number;
+}
+
+interface SpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEvent) => void) | null;
+  onend: (() => void) | null;
+  onerror: ((event: Event) => void) | null;
+  onaudiostart: (() => void) | null;
+  start(): void;
+  stop(): void;
+  abort(): void;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition: new () => SpeechRecognition;
+    webkitSpeechRecognition: new () => SpeechRecognition;
+  }
+}
 
 interface Message {
   id: string;
@@ -73,6 +117,142 @@ export function ChatBot({ userId, onTaskChange }: ChatBotProps) {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const [announcementMessage, setAnnouncementMessage] = useState('');
+
+  // Voice input state
+  const [isListening, setIsListening] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const [voiceLanguage, setVoiceLanguage] = useState<'en-US' | 'ur-PK'>('en-US');
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const interimTranscriptRef = useRef<string>(''); // Track interim separately
+
+  // Initialize speech recognition
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognitionAPI) {
+        setSpeechSupported(true);
+        const recognition = new SpeechRecognitionAPI();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.lang = voiceLanguage;
+
+        recognition.onresult = (event: SpeechRecognitionEvent) => {
+          let finalTranscript = '';
+          let interimTranscript = '';
+
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+              finalTranscript += transcript;
+            } else {
+              interimTranscript += transcript;
+            }
+          }
+
+          if (finalTranscript) {
+            // Final result - set it directly (not append)
+            setInputValue(finalTranscript);
+            interimTranscriptRef.current = '';
+          } else if (interimTranscript) {
+            // Show interim results as live feedback
+            interimTranscriptRef.current = interimTranscript;
+            setInputValue(interimTranscript);
+          }
+        };
+
+        recognition.onend = () => {
+          setIsListening(false);
+          console.log('[Voice] Recognition ended');
+        };
+
+        recognition.onerror = (event: Event & { error?: string; message?: string }) => {
+          setIsListening(false);
+          const errorMessage = (event as { error?: string }).error || 'unknown error';
+          console.error('[Voice] Recognition error:', errorMessage, event);
+
+          // Provide specific error messages
+          let userMessage = 'Voice recognition error. ';
+          switch (errorMessage) {
+            case 'not-allowed':
+              userMessage += 'Microphone permission denied. Please allow microphone access.';
+              break;
+            case 'no-speech':
+              userMessage += 'No speech detected. Please try again.';
+              break;
+            case 'audio-capture':
+              userMessage += 'No microphone found. Please check your microphone.';
+              break;
+            case 'network':
+              userMessage += 'Network error. Please check your connection.';
+              break;
+            default:
+              userMessage += 'Please try again.';
+          }
+          alert(userMessage); // Show visible error to user
+        };
+
+        recognition.onaudiostart = () => {
+          console.log('[Voice] Audio capture started');
+        };
+
+        recognitionRef.current = recognition;
+      } else {
+        console.warn('[Voice] Speech Recognition API not supported in this browser');
+      }
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+    };
+  }, [voiceLanguage]);
+
+  // Toggle voice input
+  const toggleVoiceInput = useCallback(() => {
+    if (!recognitionRef.current) {
+      console.error('[Voice] Recognition not initialized');
+      alert('Voice recognition not available in this browser');
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      setInputValue(''); // Clear previous input
+      interimTranscriptRef.current = '';
+
+      try {
+        recognitionRef.current.start();
+        setIsListening(true);
+        console.log('[Voice] Started listening in:', voiceLanguage);
+      } catch (error) {
+        console.error('[Voice] Failed to start:', error);
+        // Recognition might already be running, try to restart
+        try {
+          recognitionRef.current.stop();
+          setTimeout(() => {
+            recognitionRef.current?.start();
+            setIsListening(true);
+          }, 100);
+        } catch (retryError) {
+          console.error('[Voice] Retry failed:', retryError);
+          alert('Failed to start voice recognition. Please refresh the page.');
+        }
+      }
+    }
+  }, [isListening, voiceLanguage]);
+
+  // Toggle between English and Urdu
+  const toggleVoiceLanguage = useCallback(() => {
+    const newLang = voiceLanguage === 'en-US' ? 'ur-PK' : 'en-US';
+    setVoiceLanguage(newLang);
+    if (recognitionRef.current) {
+      recognitionRef.current.lang = newLang;
+    }
+    console.log('[Voice] Language switched to:', newLang);
+  }, [voiceLanguage]);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -280,7 +460,7 @@ export function ChatBot({ userId, onTaskChange }: ChatBotProps) {
 
   return (
     <div
-      className="flex flex-col h-full bg-background rounded-xl border shadow-lg overflow-hidden"
+      className="flex flex-col h-full min-h-[500px] bg-background rounded-xl border shadow-lg overflow-hidden"
       role="region"
       aria-label="AI Task Assistant chat interface"
     >
@@ -397,15 +577,48 @@ export function ChatBot({ userId, onTaskChange }: ChatBotProps) {
             ref={inputRef}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Type a message... (Press / to focus)"
-            className="flex-1 bg-background"
+            placeholder={isListening ? `🎤 Listening (${voiceLanguage === 'en-US' ? 'English' : 'اردو'})...` : "Type a message... (Press / to focus)"}
+            className={cn("flex-1 bg-background", isListening && "border-red-500 animate-pulse")}
             disabled={isLoading}
             aria-describedby="chat-input-help"
             autoComplete="off"
           />
           <span id="chat-input-help" className="sr-only">
-            Press Enter to send, press / from anywhere to focus this input
+            Press Enter to send, press / from anywhere to focus this input, or click the microphone for voice input
           </span>
+          {/* Voice Language Toggle Button */}
+          {speechSupported && (
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={toggleVoiceLanguage}
+              disabled={isLoading || isListening}
+              aria-label={`Switch to ${voiceLanguage === 'en-US' ? 'Urdu' : 'English'}`}
+              title={`Language: ${voiceLanguage === 'en-US' ? 'English' : 'اردو'} (click to switch)`}
+              className="text-xs font-bold min-w-[40px]"
+            >
+              {voiceLanguage === 'en-US' ? 'EN' : 'UR'}
+            </Button>
+          )}
+          {/* Voice Input Button */}
+          {speechSupported && (
+            <Button
+              type="button"
+              size="icon"
+              variant={isListening ? "destructive" : "outline"}
+              onClick={toggleVoiceInput}
+              disabled={isLoading}
+              aria-label={isListening ? "Stop voice input" : `Start voice input (${voiceLanguage === 'en-US' ? 'English' : 'Urdu'})`}
+              title={isListening ? "Stop listening" : `Voice command (${voiceLanguage === 'en-US' ? 'English' : 'اردو'})`}
+            >
+              {isListening ? (
+                <MicOff className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <Mic className="h-4 w-4" aria-hidden="true" />
+              )}
+            </Button>
+          )}
           <Button
             type="submit"
             size="icon"
@@ -421,6 +634,7 @@ export function ChatBot({ userId, onTaskChange }: ChatBotProps) {
         </form>
         <p className="text-xs text-muted-foreground mt-2 text-center" aria-hidden="true">
           Press <kbd className="px-1 py-0.5 bg-muted rounded text-xs">/</kbd> to focus input
+          {speechSupported && ` • 🎤 Voice (${voiceLanguage === 'en-US' ? 'EN' : 'UR'}) • Click EN/UR to switch language`}
         </p>
       </footer>
     </div>

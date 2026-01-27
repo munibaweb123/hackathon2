@@ -24,6 +24,7 @@ const statusLabels: Record<TaskStatus, string> = {
 
 const sortLabels: Record<TaskSortBy, string> = {
   created_at: 'Date Created',
+  updated_at: 'Date Updated',
   due_date: 'Due Date',
   priority: 'Priority',
   title: 'Title',
