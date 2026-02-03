@@ -1,263 +1,419 @@
-# Todo Console App
+# Hackathon Todo Application
 
-A feature-rich command-line todo application built with Python 3.13+ and UV package manager. Supports recurring tasks, reminders, due dates with times, and persistent JSON storage.
+A comprehensive full-stack todo application demonstrating progressive software development from a simple console app to a cloud-native distributed system. Built as a multi-phase hackathon project showcasing modern development practices.
 
-## Features
+## Project Overview
 
-### Core Features
+| Phase | Name | Status | Description |
+|-------|------|--------|-------------|
+| Phase I | Console App | ✅ Completed | CLI-based todo app with in-memory/JSON storage |
+| Phase II | Web App | ✅ Completed | Full-stack REST API with authentication |
+| Phase III | AI Chatbot | ✅ Completed | Natural language task management |
+| Phase IV | Kubernetes | ✅ Completed | Local K8s deployment with Helm charts |
+| Phase V | Cloud Deploy | 🚧 In Progress | Production cloud deployment with event-driven architecture |
+
+---
+
+## Phase I: Console Application
+
+A feature-rich command-line todo application built with Python 3.13+ and UV package manager.
+
+### Features
 - Add, view, update, and delete tasks
 - Mark tasks as complete/incomplete
 - Set priority levels (high/medium/low)
 - Organize tasks with categories
 - Search tasks by keyword
-- Filter tasks by status, priority, category, date range, or recurrence
+- Filter tasks by status, priority, category, date range
 - Sort tasks by due date, priority, title, or creation date
+- **Recurring Tasks**: Daily, weekly, monthly, or custom intervals
+- **Due Time Support**: Set specific times alongside dates
+- **Reminder Notifications**: Console notifications before deadlines
+- **Persistent Storage**: JSON file storage
 
-### Advanced Features
-- **Recurring Tasks**: Create daily, weekly, monthly, or custom recurring tasks that auto-regenerate when completed
-- **Due Time Support**: Set specific due times (e.g., "2:30pm" or "14:30") alongside dates
-- **Reminder Notifications**: Get console notifications before task deadlines
-- **Series Management**: Edit or delete entire recurring series or single instances
-- **Default Preferences**: Configure default reminder settings that auto-apply to new tasks
-- **Persistent Storage**: Tasks are saved to `tasks.json` and persist between sessions
-
-## Prerequisites
-
-- Python 3.13 or higher
-- UV package manager ([install instructions](https://docs.astral.sh/uv/getting-started/installation/))
-
-## Installation
-
-```bash
-# Clone the repository
-git clone https://github.com/munibaweb123/hackathon2.git
-cd hackathon_2
-
-# Install dependencies with UV
-uv sync
-
-# For development (includes pytest):
-uv sync --dev
-```
-
-## Usage
-
-### Start the Application
-
-```bash
-uv run python -m todo_app
-```
-
-### Main Menu
-
-```
-=== Todo Application ===
-
-1. Add new task
-2. View all tasks
-3. Update task
-4. Delete task
-5. Mark task complete/incomplete
-6. Search tasks
-7. Filter tasks
-8. Sort tasks
-9. Settings
-0. Exit
-```
-
-### Example: Create a Recurring Task
-
-```
-Enter choice: 1
-
-Add New Task
-Title: Weekly team meeting
-Description (optional): Discuss project progress
-Due date (YYYY-MM-DD, optional): 2025-12-15
-Due time (e.g., 2:30pm or 14:30, optional): 10:00am
-Priority (high/medium/low): high
-Categories (comma-separated, optional): work, meetings
-
-Make this a recurring task?
-  1. No (one-time task)
-  2. Daily
-  3. Weekly
-  4. Monthly
-  5. Custom interval
-
-Enter choice (default 1): 3
-Repeat every N weeks (default 1): 1
-
-Set a reminder?
-  1. No reminder
-  2. At due time
-  3. 15 minutes before
-  4. 30 minutes before
-  5. 1 hour before
-  ...
-
-Enter choice (default 1): 5
-
-Task #1 created successfully!
-Repeats: weekly (every 1 week)
-Reminder set: 1 hour before
-```
-
-### Example: Complete a Recurring Task
-
-When you mark a recurring task as complete, the next instance is automatically created:
-
-```
-Enter choice: 5
-
-Toggle Task Status
-Enter task ID to toggle: 1
-
-Task #1 marked as complete.
-Next recurring instance created: Task #2 (due: 2025-12-22)
-```
-
-### Filter Options
-
-```
-Filter by:
-  1. Status (complete/incomplete)
-  2. Priority (high/medium/low)
-  3. Category
-  4. Due date range
-  5. Recurring tasks only
-  0. Cancel
-```
-
-### Settings Menu
-
-```
-Settings
-
-Current Settings:
-  Default Reminder: 1 hour before
-  Notifications: Enabled
-
-What would you like to configure?
-  1. Set default reminder for new tasks
-  2. Clear default reminder
-  3. Toggle notifications
-  0. Back to main menu
-```
-
-## Project Structure
-
-```
-hackathon_2/
-├── src/
-│   └── todo_app/
-│       ├── __init__.py
-│       ├── __main__.py           # Entry point
-│       ├── models/
-│       │   ├── __init__.py
-│       │   ├── task.py           # Task model with recurrence & reminders
-│       │   ├── recurrence.py     # RecurrencePattern, RecurrenceFrequency
-│       │   └── reminder.py       # Reminder, ReminderOffset
-│       ├── services/
-│       │   ├── __init__.py
-│       │   ├── task_service.py   # Core task operations
-│       │   ├── recurrence_service.py  # Recurring task logic
-│       │   ├── reminder_service.py    # Reminder notifications
-│       │   ├── preferences_service.py # User preferences
-│       │   ├── filter.py         # Task filtering
-│       │   ├── sort.py           # Task sorting
-│       │   ├── search.py         # Task search
-│       │   └── validators.py     # Input validation
-│       ├── storage/
-│       │   ├── __init__.py
-│       │   ├── json_store.py     # JSON file persistence
-│       │   └── preferences.py    # Preferences storage
-│       └── ui/
-│           ├── __init__.py
-│           ├── menu.py           # Main menu system
-│           ├── display.py        # Task display formatting
-│           ├── prompts.py        # User input prompts
-│           └── console.py        # Console utilities
-├── tests/
-│   ├── unit/
-│   ├── integration/
-│   └── contract/
-├── specs/                        # Feature specifications
-├── tasks.json                    # Task storage (auto-created)
-├── preferences.json              # User preferences (auto-created)
-├── pyproject.toml
-└── README.md
-```
-
-## Data Storage
-
-### tasks.json
-Tasks are automatically saved to `tasks.json` in the working directory:
-
-```json
-{
-  "version": "1.1",
-  "tasks": [
-    {
-      "id": 1,
-      "title": "Weekly team meeting",
-      "description": "Discuss project progress",
-      "status": "incomplete",
-      "priority": "high",
-      "categories": ["work", "meetings"],
-      "due_date": "2025-12-15",
-      "due_time": "10:00:00",
-      "recurrence": {
-        "frequency": "weekly",
-        "interval": 1
-      },
-      "series_id": "abc123-...",
-      "reminders": [
-        {
-          "offset": "1_hour",
-          "trigger_time": "2025-12-15T09:00:00"
-        }
-      ],
-      "created_at": "2025-12-09T10:30:00",
-      "updated_at": "2025-12-09T10:30:00"
-    }
-  ]
-}
-```
-
-### preferences.json
-User preferences are stored in `preferences.json`:
-
-```json
-{
-  "default_reminder": "1_hour",
-  "notifications_enabled": true
-}
-```
-
-## Development
-
-```bash
-# Run tests
-uv run pytest
-
-# Run with coverage
-uv run pytest --cov=src --cov-report=term-missing
-
-# Run specific test types
-uv run pytest tests/unit/
-uv run pytest tests/integration/
-```
-
-## Technology Stack
-
+### Tech Stack
 - **Language**: Python 3.13+
 - **Package Manager**: UV
 - **Console UI**: Rich (tables, panels, formatting)
 - **Date Handling**: python-dateutil
 - **Storage**: JSON files
-- **Testing**: pytest
+
+### Usage
+```bash
+cd src/todo_app
+uv run python -m todo_app
+```
+
+---
+
+## Phase II: Web Application
+
+Full-stack web application with REST API, authentication, and modern frontend.
+
+### Architecture
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│    Frontend     │────▶│     Backend     │────▶│    Database     │
+│   Next.js 14    │     │    FastAPI      │     │   PostgreSQL    │
+│   TypeScript    │     │    SQLModel     │     │   (Neon Cloud)  │
+│   Tailwind CSS  │     │   Better Auth   │     │                 │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+```
+
+### Backend Features
+- RESTful API with FastAPI
+- JWT authentication via Better Auth
+- SQLModel ORM with PostgreSQL
+- Task CRUD operations with user isolation
+- Alembic database migrations
+- Structured JSON logging
+
+### Frontend Features
+- Next.js 14 with App Router
+- TypeScript for type safety
+- Tailwind CSS for styling
+- ShadCN UI components
+- Better Auth session management
+- Responsive design
+
+### Tech Stack
+| Component | Technology |
+|-----------|------------|
+| Backend Framework | FastAPI |
+| ORM | SQLModel |
+| Database | PostgreSQL (Neon Serverless) |
+| Authentication | Better Auth |
+| Frontend Framework | Next.js 14 |
+| Styling | Tailwind CSS |
+| UI Components | ShadCN |
+
+### Running Locally
+```bash
+# Backend
+cd backend
+uv sync
+uvicorn app.main:app --reload
+
+# Frontend
+cd frontend
+npm install
+npm run dev
+```
+
+### Docker Compose
+```bash
+docker-compose up
+```
+
+---
+
+## Phase III: AI Chatbot
+
+AI-powered chatbot interface for managing todos through natural language.
+
+### Features
+- Natural language task management
+- Conversation context maintenance
+- Multi-turn conversations
+- Intelligent intent recognition
+- Real-time task operations
+
+### Supported Commands
+- "Add a task to buy groceries"
+- "Show me all my tasks"
+- "What's pending?"
+- "Mark task 3 as complete"
+- "Update that task to include eggs"
+- "What have I completed?"
+
+### Architecture
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│     User        │────▶│   AI Chatbot    │────▶│   Task Service  │
+│   Interface     │     │  OpenAI/MCP     │     │   (FastAPI)     │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+                               │
+                               ▼
+                        ┌─────────────────┐
+                        │  Conversation   │
+                        │    Storage      │
+                        └─────────────────┘
+```
+
+### Tech Stack
+- **AI Framework**: OpenAI Agents SDK
+- **Protocol**: MCP (Model Context Protocol)
+- **Backend**: FastAPI with existing task services
+- **Storage**: PostgreSQL for conversations
+
+---
+
+## Phase IV: Kubernetes Deployment
+
+Local Kubernetes deployment using Minikube with AI-assisted DevOps tools.
+
+### Features
+- Containerized frontend and backend
+- Helm charts for deployment management
+- AI-assisted DevOps with kubectl-ai and Kagent
+- Health checks and readiness probes
+- Persistent volume storage
+- Rolling updates with zero downtime
+
+### Architecture
+```
+┌─────────────────────────────────────────────────────┐
+│                  Minikube Cluster                    │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
+│  │  Frontend   │  │   Backend   │  │ PostgreSQL  │  │
+│  │    Pod      │  │    Pod      │  │    Pod      │  │
+│  │  (NodePort) │  │  (Service)  │  │   (PVC)     │  │
+│  └─────────────┘  └─────────────┘  └─────────────┘  │
+└─────────────────────────────────────────────────────┘
+```
+
+### Prerequisites
+- Docker Desktop 4.53+
+- Minikube
+- kubectl
+- Helm 3.x
+- kubectl-ai (optional)
+- Kagent (optional)
+
+### Deployment Commands
+```bash
+# Start Minikube
+minikube start --memory=4096 --cpus=2
+
+# Build images in Minikube
+eval $(minikube docker-env)
+docker build -t todo-backend:latest ./backend
+docker build -t todo-frontend:latest ./frontend
+
+# Deploy with Helm
+helm install todo-app ./helm-charts
+
+# Access the application
+minikube service todo-frontend
+```
+
+### AI-Assisted Operations
+```bash
+# Using kubectl-ai
+kubectl-ai "deploy the todo frontend with 2 replicas"
+kubectl-ai "check why the pods are failing"
+
+# Using Kagent
+kagent "analyze the cluster health"
+kagent "optimize resource allocation"
+```
+
+---
+
+## Phase V: Advanced Cloud Deployment
+
+Production-ready cloud-native deployment with event-driven architecture.
+
+### Features
+
+#### Advanced Task Features
+- Due dates with time precision
+- Reminder notifications (in-app & email)
+- Recurring tasks (daily, weekly, monthly, custom)
+- Priority levels (High, Medium, Low, None)
+- Tags for organization
+- Full-text search
+- Advanced filtering and sorting
+- Real-time sync across devices
+
+#### Event-Driven Architecture
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│ Task Events │────▶│   Kafka     │────▶│ Consumers   │
+│  (Pub/Sub)  │     │ (Redpanda)  │     │             │
+└─────────────┘     └─────────────┘     └─────────────┘
+                                               │
+              ┌────────────────────────────────┼────────────────────────────────┐
+              ▼                                ▼                                ▼
+     ┌─────────────────┐              ┌─────────────────┐              ┌─────────────────┐
+     │  Notification   │              │   Recurring     │              │   Audit Log     │
+     │    Service      │              │  Task Service   │              │    Service      │
+     └─────────────────┘              └─────────────────┘              └─────────────────┘
+```
+
+#### Infrastructure
+- **Runtime**: Dapr (Distributed Application Runtime)
+- **Messaging**: Redpanda Cloud (Kafka-compatible)
+- **Cloud Providers**: DigitalOcean (DOKS), Google Cloud (GKE), or Azure (AKS)
+- **CI/CD**: GitHub Actions
+- **Monitoring**: Cloud-native observability stack
+
+### Tech Stack
+| Component | Technology |
+|-----------|------------|
+| Event Broker | Redpanda Cloud (Kafka) |
+| Service Mesh | Dapr |
+| Container Orchestration | Kubernetes (DOKS/GKE/AKS) |
+| CI/CD | GitHub Actions |
+| Monitoring | Cloud-native solutions |
+| Database | PostgreSQL (Neon Serverless) |
+
+### Local Development with Dapr
+```bash
+# Initialize Dapr
+dapr init
+
+# Run with Dapr sidecar
+dapr run --app-id todo-backend --app-port 8000 -- uvicorn app.main:app
+```
+
+### Cloud Deployment
+```bash
+# Deploy to GKE
+gcloud container clusters get-credentials todo-cluster --zone us-central1-a
+helm install todo-app ./helm-charts -f values-production.yaml
+
+# Deploy to DOKS
+doctl kubernetes cluster kubeconfig save todo-cluster
+helm install todo-app ./helm-charts -f values-production.yaml
+
+# Deploy to AKS
+az aks get-credentials --resource-group todo-rg --name todo-cluster
+helm install todo-app ./helm-charts -f values-production.yaml
+```
+
+---
+
+## Project Structure
+
+```
+hackathon_2/
+├── backend/                    # FastAPI backend
+│   ├── app/
+│   │   ├── api/               # Route handlers
+│   │   ├── auth/              # Authentication
+│   │   ├── core/              # Config, database
+│   │   ├── models/            # SQLModel entities
+│   │   ├── schemas/           # Pydantic schemas
+│   │   └── services/          # Business logic
+│   ├── tests/
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend/                   # Next.js frontend
+│   ├── src/
+│   │   ├── app/               # App Router pages
+│   │   ├── components/        # UI components
+│   │   ├── hooks/             # Custom hooks
+│   │   ├── lib/               # Utilities
+│   │   └── services/          # Service layer
+│   ├── Dockerfile
+│   └── package.json
+├── src/                        # Console app (Phase I)
+│   └── todo_app/
+├── specs/                      # Feature specifications
+│   ├── 001-todo-console-app/
+│   ├── 001-hackathon-todo-monorepo/
+│   ├── 001-ai-chatbot-mcp/
+│   ├── 001-k8s-deployment/
+│   └── 004-advanced-cloud-deploy/
+├── helm-charts/                # Kubernetes Helm charts
+├── k8s/                        # Kubernetes manifests
+├── .github/workflows/          # CI/CD pipelines
+├── docker-compose.yml
+└── README.md
+```
+
+---
+
+## Quick Start
+
+### Prerequisites
+- Python 3.13+
+- Node.js 20+
+- Docker & Docker Compose
+- UV package manager
+
+### Development Setup
+```bash
+# Clone the repository
+git clone https://github.com/munibaweb123/hackathon2.git
+cd hackathon_2
+
+# Start with Docker Compose (recommended)
+docker-compose up
+
+# Or run services individually:
+
+# Backend
+cd backend
+uv sync
+uvicorn app.main:app --reload
+
+# Frontend (in another terminal)
+cd frontend
+npm install
+npm run dev
+```
+
+### Access Points
+- **Frontend**: http://localhost:3000
+- **Backend API**: http://localhost:8000
+- **API Docs**: http://localhost:8000/docs
+
+---
+
+## Environment Variables
+
+### Backend (.env)
+```env
+DATABASE_URL=postgresql://user:pass@host:5432/db
+BETTER_AUTH_SECRET=your-secret-key
+BETTER_AUTH_URL=http://localhost:3000
+FRONTEND_URL=http://localhost:3000
+```
+
+### Frontend (.env.local)
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+BETTER_AUTH_SECRET=your-secret-key
+```
+
+---
+
+## Testing
+
+```bash
+# Backend tests
+cd backend
+uv run pytest
+
+# With coverage
+uv run pytest --cov=app --cov-report=term-missing
+
+# Frontend tests
+cd frontend
+npm test
+```
+
+---
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
 
 ## License
 
-MIT License
+MIT License - See [LICENSE](LICENSE) for details.
+
+---
+
+## Author
+
+**Muniba Ahmed**
+- GitHub: [@munibaweb123](https://github.com/munibaweb123)
