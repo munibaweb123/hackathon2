@@ -1,5 +1,6 @@
 """Pytest configuration and fixtures for backend tests."""
 
+import os
 import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import SQLModel, Session, create_engine
@@ -11,15 +12,32 @@ from app.core.database import get_session
 
 @pytest.fixture(name="session")
 def session_fixture():
-    """Create an in-memory SQLite database session for testing."""
-    engine = create_engine(
-        "sqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    SQLModel.metadata.create_all(engine)
-    with Session(engine) as session:
-        yield session
+    """Create a database session for testing.
+
+    Uses PostgreSQL if DATABASE_URL is set (CI environment),
+    otherwise falls back to SQLite for local testing.
+    """
+    database_url = os.environ.get("DATABASE_URL")
+
+    if database_url and database_url.startswith("postgresql"):
+        # Use PostgreSQL for CI/integration tests
+        engine = create_engine(database_url, echo=False)
+        SQLModel.metadata.create_all(engine)
+        with Session(engine) as session:
+            yield session
+        # Clean up tables after test
+        SQLModel.metadata.drop_all(engine)
+    else:
+        # Fall back to SQLite for quick local tests
+        # Note: Some PostgreSQL features like ARRAY won't work with SQLite
+        engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        SQLModel.metadata.create_all(engine)
+        with Session(engine) as session:
+            yield session
 
 
 @pytest.fixture(name="client")
