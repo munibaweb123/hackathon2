@@ -1,0 +1,26 @@
+loki:
+  enabled: true
+  persistence:
+    enabled: true
+    size: 10Gi
+
+promtail:
+  enabled: true
+  config:
+    clients:
+      - url: http://loki:3100/loki/api/v1/push
+    scrapeConfigs:
+      - job_name: kubernetes-pods
+        kubernetes_sd_configs:
+          - role: pod
+        pipeline_stages:
+          - docker: {}
+          - match:
+              selector: '{namespace="todo-app"}'
+              stages:
+                - json:
+                    expressions:
+                      level: level
+                      message: message
+                - labels:
+                    level:

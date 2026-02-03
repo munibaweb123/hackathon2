@@ -1,219 +1,136 @@
-"""Search service using PostgreSQL full-text search with tsvector/tsquery."""
-
 from typing import List, Optional
-from datetime import datetime
-from sqlmodel import Session, select, col, or_, and_
-from sqlalchemy import func, text
-
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, func
 from ..models.task import Task
-from ..models.enums import Priority, TaskStatus
-from ..models.tag import Tag
-from ..models.task_tag import TaskTag
-import logging
-
-logger = logging.getLogger(__name__)
+from ..schemas.task import Task as TaskSchema
 
 
 class SearchService:
-    """Service for searching tasks using PostgreSQL full-text search."""
+    """
+    Service for full-text search functionality using PostgreSQL tsvector/tsquery
+    """
 
-    def __init__(self, session: Session):
-        self.session = session
+    def __init__(self, db_session: AsyncSession):
+        self.db_session = db_session
 
-    def search_tasks(
-        self,
-        user_id: str,
-        query: Optional[str] = None,
-        status: Optional[str] = None,
-        priority: Optional[str] = None,
-        tag_ids: Optional[List[str]] = None,
-        due_before: Optional[datetime] = None,
-        due_after: Optional[datetime] = None,
-        sort_by: str = "created_at",
-        order: str = "desc",
-        page: int = 1,
-        page_size: int = 50,
-    ) -> tuple[List[Task], int]:
+    async def search_tasks(self, query: str, user_id: str, limit: int = 20, offset: int = 0) -> List[Task]:
         """
-        Search tasks with full-text search and multiple filters.
+        Search tasks using PostgreSQL full-text search
 
         Args:
-            user_id: The user's ID
-            query: Full-text search query (searches title and description)
-            status: Filter by status ('pending', 'completed', 'all')
-            priority: Filter by priority ('low', 'medium', 'high', 'none')
-            tag_ids: Filter by tag IDs (tasks matching ANY of the tags)
-            due_before: Filter tasks due before this date
-            due_after: Filter tasks due after this date
-            sort_by: Sort field ('created_at', 'due_date', 'priority', 'title')
-            order: Sort order ('asc', 'desc')
-            page: Page number (1-indexed)
-            page_size: Number of results per page
+            query: Search query string
+            user_id: User ID to filter tasks
+            limit: Maximum number of results to return
+            offset: Offset for pagination
 
         Returns:
-            Tuple of (list of tasks, total count)
+            List of matching tasks
         """
-        # Base query - filter by user
-        statement = select(Task).where(Task.user_id == user_id)
+        # Convert search query to PostgreSQL tsquery format
+        ts_query = func.plainto_tsquery('english', query)
 
-        # Full-text search on title and description
-        if query and query.strip():
-            search_term = query.strip()
-            # Use ILIKE for simple case-insensitive partial matching
-            # This works well for smaller datasets and doesn't require tsvector setup
-            search_pattern = f"%{search_term}%"
-            statement = statement.where(
-                or_(
-                    Task.title.ilike(search_pattern),
-                    Task.description.ilike(search_pattern)
-                )
+        stmt = (
+            select(Task)
+            .where(Task.user_id == user_id)
+            .where(Task.search_vector.op('@@')(ts_query))
+            .order_by(
+                func.ts_rank(Task.search_vector, ts_query).desc()
             )
+            .limit(limit)
+            .offset(offset)
+        )
 
-        # Status filter
-        if status and status != "all":
-            if status == "completed":
-                statement = statement.where(Task.completed == True)
-            elif status == "pending":
-                statement = statement.where(Task.completed == False)
+        result = await self.db_session.execute(stmt)
+        return result.scalars().all()
 
-        # Priority filter
-        if priority and priority != "all":
-            try:
-                priority_enum = Priority(priority)
-                statement = statement.where(Task.priority == priority_enum)
-            except ValueError:
-                logger.warning(f"Invalid priority value: {priority}")
-
-        # Date range filters
-        if due_after:
-            statement = statement.where(Task.due_date >= due_after)
-        if due_before:
-            statement = statement.where(Task.due_date <= due_before)
-
-        # Tag filter - tasks that have ANY of the specified tags
-        if tag_ids and len(tag_ids) > 0:
-            # Subquery to find task IDs that have any of the specified tags
-            from uuid import UUID
-            valid_tag_ids = []
-            for tag_id in tag_ids:
-                try:
-                    valid_tag_ids.append(UUID(tag_id))
-                except ValueError:
-                    continue
-
-            if valid_tag_ids:
-                tag_subquery = (
-                    select(TaskTag.task_id)
-                    .where(TaskTag.tag_id.in_(valid_tag_ids))
-                    .distinct()
-                )
-                statement = statement.where(Task.id.in_(tag_subquery))
-
-        # Get total count before pagination
-        count_statement = statement
-        total = len(self.session.exec(count_statement).all())
-
-        # Sorting
-        sort_column = {
-            "created_at": Task.created_at,
-            "due_date": Task.due_date,
-            "priority": Task.priority,
-            "title": Task.title,
-            "updated_at": Task.updated_at,
-        }.get(sort_by, Task.created_at)
-
-        if order == "asc":
-            statement = statement.order_by(col(sort_column).asc())
-        else:
-            statement = statement.order_by(col(sort_column).desc())
-
-        # Pagination
-        offset = (page - 1) * page_size
-        statement = statement.offset(offset).limit(page_size)
-
-        # Execute query
-        tasks = self.session.exec(statement).all()
-
-        return list(tasks), total
-
-    def search_with_tsvector(
+    async def filter_tasks(
         self,
         user_id: str,
-        query: str,
-        page: int = 1,
-        page_size: int = 50,
-    ) -> tuple[List[Task], int]:
+        status: Optional[str] = None,
+        priority: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+        due_before: Optional[str] = None,
+        due_after: Optional[str] = None,
+        limit: int = 20,
+        offset: int = 0
+    ) -> List[Task]:
         """
-        Advanced full-text search using PostgreSQL tsvector.
+        Filter tasks by various criteria
 
-        This method uses PostgreSQL's native full-text search capabilities
-        for better performance on large datasets.
+        Args:
+            user_id: User ID to filter tasks
+            status: Task status to filter by
+            priority: Task priority to filter by
+            tags: List of tag names to filter by
+            due_before: Filter tasks with due date before this date
+            due_after: Filter tasks with due date after this date
+            limit: Maximum number of results to return
+            offset: Offset for pagination
 
-        Note: Requires search_vector column to be set up with trigger.
+        Returns:
+            List of filtered tasks
         """
-        if not query or not query.strip():
-            return [], 0
+        stmt = select(Task).where(Task.user_id == user_id)
 
-        search_term = query.strip()
+        if status:
+            stmt = stmt.where(Task.status == status)
 
-        # Convert search term to tsquery format
-        # Split words and join with & for AND matching
-        words = search_term.split()
-        tsquery_str = " & ".join(words)
+        if priority:
+            stmt = stmt.where(Task.priority == priority)
 
-        try:
-            # Use raw SQL for tsvector search
-            sql = text("""
-                SELECT * FROM tasks
-                WHERE user_id = :user_id
-                AND (
-                    to_tsvector('english', coalesce(title, '') || ' ' || coalesce(description, ''))
-                    @@ plainto_tsquery('english', :query)
-                )
-                ORDER BY ts_rank(
-                    to_tsvector('english', coalesce(title, '') || ' ' || coalesce(description, '')),
-                    plainto_tsquery('english', :query)
-                ) DESC
-                LIMIT :limit OFFSET :offset
-            """)
+        if due_before:
+            from datetime import datetime
+            due_before_dt = datetime.fromisoformat(due_before.replace('Z', '+00:00'))
+            stmt = stmt.where(Task.due_date <= due_before_dt)
 
-            count_sql = text("""
-                SELECT COUNT(*) FROM tasks
-                WHERE user_id = :user_id
-                AND (
-                    to_tsvector('english', coalesce(title, '') || ' ' || coalesce(description, ''))
-                    @@ plainto_tsquery('english', :query)
-                )
-            """)
+        if due_after:
+            from datetime import datetime
+            due_after_dt = datetime.fromisoformat(due_after.replace('Z', '+00:00'))
+            stmt = stmt.where(Task.due_date >= due_after_dt)
 
-            offset = (page - 1) * page_size
+        stmt = stmt.limit(limit).offset(offset)
 
-            # Execute count query
-            count_result = self.session.exec(count_sql, {"user_id": user_id, "query": search_term})
-            total = count_result.scalar() or 0
+        result = await self.db_session.execute(stmt)
+        return result.scalars().all()
 
-            # Execute search query
-            result = self.session.exec(sql, {
-                "user_id": user_id,
-                "query": search_term,
-                "limit": page_size,
-                "offset": offset
-            })
+    async def sort_tasks(
+        self,
+        user_id: str,
+        sort_field: str = "created_at",
+        sort_direction: str = "asc",
+        limit: int = 20,
+        offset: int = 0
+    ) -> List[Task]:
+        """
+        Sort tasks by specified field
 
-            tasks = result.all()
-            return list(tasks), total
+        Args:
+            user_id: User ID to filter tasks
+            sort_field: Field to sort by (due_date, priority, created_at, title)
+            sort_direction: Direction of sort (asc or desc)
+            limit: Maximum number of results to return
+            offset: Offset for pagination
 
-        except Exception as e:
-            logger.error(f"tsvector search failed, falling back to ILIKE: {e}")
-            # Fallback to ILIKE search
-            return self.search_tasks(
-                user_id=user_id,
-                query=query,
-                page=page,
-                page_size=page_size
-            )
+        Returns:
+            List of sorted tasks
+        """
+        stmt = select(Task).where(Task.user_id == user_id)
 
+        # Define allowed sort fields to prevent injection
+        allowed_fields = {
+            "due_date": Task.due_date,
+            "priority": Task.priority,
+            "created_at": Task.created_at,
+            "title": Task.title
+        }
 
-def get_search_service(session: Session) -> SearchService:
-    """Factory function to create a SearchService instance."""
-    return SearchService(session)
+        if sort_field in allowed_fields:
+            if sort_direction.lower() == "desc":
+                stmt = stmt.order_by(allowed_fields[sort_field].desc())
+            else:
+                stmt = stmt.order_by(allowed_fields[sort_field])
+
+        stmt = stmt.limit(limit).offset(offset)
+
+        result = await self.db_session.execute(stmt)
+        return result.scalars().all()

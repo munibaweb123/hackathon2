@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import { jwtApiClient } from '@/services/auth/api-client';
 import type { Task, CreateTaskInput, UpdateTaskInput, TaskFilters, ApiError } from '@/types';
 
@@ -10,14 +10,70 @@ export function useTasks() {
   const [error, setError] = useState<ApiError | null>(null);
   const [filters, setFilters] = useState<TaskFilters>({
     status: 'all',
-    priority: 'all',
     sortBy: 'created_at',
     order: 'desc',
-    search: '',
-    tags: [],
+    priority: undefined,
+    searchQuery: '',
     dueBefore: undefined,
     dueAfter: undefined,
   });
+
+  // Create a stable key for filters to prevent unnecessary fetches
+  const filtersKey = useMemo(() => {
+    return JSON.stringify({
+      status: filters.status,
+      priority: filters.priority,
+      searchQuery: filters.searchQuery,
+      dueBefore: filters.dueBefore,
+      dueAfter: filters.dueAfter,
+      sortBy: filters.sortBy,
+      order: filters.order,
+    });
+  }, [
+    filters.status,
+    filters.priority,
+    filters.searchQuery,
+    filters.dueBefore,
+    filters.dueAfter,
+    filters.sortBy,
+    filters.order
+  ]);
+
+  const previousFiltersKeyRef = useRef<string>(filtersKey);
+
+  useEffect(() => {
+    // Only fetch if filters actually changed
+    if (previousFiltersKeyRef.current === filtersKey) {
+      return;
+    }
+
+    previousFiltersKeyRef.current = filtersKey;
+
+    const fetchTasks = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const data = await jwtApiClient.getTasks(filters);
+        // Ensure all tasks have the required fields with default values
+        const processedTasks = data.map(task => ({
+          ...task,
+          is_recurring: task.is_recurring ?? false,
+          recurrence_pattern: task.recurrence_pattern,
+          recurrence_interval: task.recurrence_interval,
+          recurrence_end_date: task.recurrence_end_date,
+          parent_task_id: task.parent_task_id,
+          reminders: task.reminders ?? [],
+        }));
+        setTasks(processedTasks);
+      } catch (err) {
+        setError(err as ApiError);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchTasks();
+  }, [filtersKey]);
 
   const fetchTasks = useCallback(async () => {
     setIsLoading(true);
@@ -41,10 +97,6 @@ export function useTasks() {
       setIsLoading(false);
     }
   }, [filters]);
-
-  useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
 
   const createTask = useCallback(async (input: CreateTaskInput) => {
     setIsLoading(true);
@@ -72,8 +124,20 @@ export function useTasks() {
   }, []);
 
   const updateTask = useCallback(async (taskId: number, input: UpdateTaskInput) => {
-    setIsLoading(true);
     setError(null);
+
+    // Optimistic update: save previous state for rollback
+    const previousTasks = [...tasks];
+
+    // Apply optimistic update
+    setTasks((prev) =>
+      prev.map((task) =>
+        task.id === taskId
+          ? { ...task, ...input, updated_at: new Date().toISOString() }
+          : task
+      )
+    );
+
     try {
       const updatedTask = await jwtApiClient.updateTask(taskId, input);
       // Ensure the updated task has the required fields with default values
@@ -86,33 +150,53 @@ export function useTasks() {
         parent_task_id: updatedTask.parent_task_id,
         reminders: updatedTask.reminders ?? [],
       };
+      // Update with actual server response
       setTasks((prev) =>
         prev.map((task) => (task.id === taskId ? processedTask : task))
       );
       return processedTask;
     } catch (err) {
+      // Rollback on error
+      setTasks(previousTasks);
       setError(err as ApiError);
       throw err;
-    } finally {
-      setIsLoading(false);
     }
-  }, []);
+  }, [tasks]);
 
   const deleteTask = useCallback(async (taskId: number) => {
-    setIsLoading(true);
     setError(null);
+
+    // Optimistic delete: save previous state for rollback
+    const previousTasks = [...tasks];
+
+    // Apply optimistic delete
+    setTasks((prev) => prev.filter((task) => task.id !== taskId));
+
     try {
       await jwtApiClient.deleteTask(taskId);
-      setTasks((prev) => prev.filter((task) => task.id !== taskId));
     } catch (err) {
+      // Rollback on error
+      setTasks(previousTasks);
       setError(err as ApiError);
       throw err;
-    } finally {
-      setIsLoading(false);
     }
-  }, []);
+  }, [tasks]);
 
   const toggleComplete = useCallback(async (taskId: number) => {
+    setError(null);
+
+    // Optimistic toggle: save previous state for rollback
+    const previousTasks = [...tasks];
+
+    // Apply optimistic toggle
+    setTasks((prev) =>
+      prev.map((task) =>
+        task.id === taskId
+          ? { ...task, completed: !task.completed, updated_at: new Date().toISOString() }
+          : task
+      )
+    );
+
     try {
       const updatedTask = await jwtApiClient.toggleTaskComplete(taskId);
       // Ensure the updated task has the required fields with default values
@@ -125,57 +209,22 @@ export function useTasks() {
         parent_task_id: updatedTask.parent_task_id,
         reminders: updatedTask.reminders ?? [],
       };
+      // Update with actual server response
       setTasks((prev) =>
         prev.map((task) => (task.id === taskId ? processedTask : task))
       );
       return processedTask;
     } catch (err) {
+      // Rollback on error
+      setTasks(previousTasks);
       setError(err as ApiError);
       throw err;
     }
-  }, []);
+  }, [tasks]);
 
   const updateFilters = useCallback((newFilters: Partial<TaskFilters>) => {
     setFilters((prev) => ({ ...prev, ...newFilters }));
   }, []);
-
-  // Update search query with debouncing handled by the SearchBar component
-  const setSearch = useCallback((search: string) => {
-    setFilters((prev) => ({ ...prev, search }));
-  }, []);
-
-  // Update date range
-  const setDateRange = useCallback((dueAfter?: string, dueBefore?: string) => {
-    setFilters((prev) => ({ ...prev, dueAfter, dueBefore }));
-  }, []);
-
-  // Update tags filter
-  const setTagFilter = useCallback((tags: string[]) => {
-    setFilters((prev) => ({ ...prev, tags }));
-  }, []);
-
-  // Clear all filters
-  const clearFilters = useCallback(() => {
-    setFilters({
-      status: 'all',
-      priority: 'all',
-      sortBy: 'created_at',
-      order: 'desc',
-      search: '',
-      tags: [],
-      dueBefore: undefined,
-      dueAfter: undefined,
-    });
-  }, []);
-
-  // Check if any filters are active
-  const hasActiveFilters =
-    filters.status !== 'all' ||
-    filters.priority !== 'all' ||
-    (filters.search && filters.search.trim() !== '') ||
-    (filters.tags && filters.tags.length > 0) ||
-    filters.dueBefore !== undefined ||
-    filters.dueAfter !== undefined;
 
   // Computed values
   const completedCount = tasks.filter((t) => t.completed).length;
@@ -189,16 +238,11 @@ export function useTasks() {
     completedCount,
     pendingCount,
     totalCount: tasks.length,
-    hasActiveFilters,
     fetchTasks,
     createTask,
     updateTask,
     deleteTask,
     toggleComplete,
     updateFilters,
-    setSearch,
-    setDateRange,
-    setTagFilter,
-    clearFilters,
   };
 }

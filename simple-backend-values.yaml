@@ -1,0 +1,41 @@
+# Minimal configuration focusing on backend only
+backend:
+  image:
+    repository: todo-backend
+    tag: latest
+    pullPolicy: Never
+  env:
+    - name: DATABASE_URL
+      value: "postgresql://postgres:postgres123@postgres.postgres.svc.cluster.local:5432/todo_db"
+    - name: CORS_ORIGINS
+      value: "http://localhost:3000,http://todo-app-frontend.todo-app.svc.cluster.local:3000"
+
+# Disable other services
+replicaCount:
+  backend: 1
+  frontend: 0
+  notification: 0
+  recurring: 0
+  audit: 0
+
+images:
+  backend:
+    repository: todo-backend
+    tag: latest
+    pullPolicy: Never
+  frontend:
+    repository: todo-frontend
+    tag: latest
+    pullPolicy: Never
+  notification:
+    repository: todo-notification
+    tag: latest
+    pullPolicy: Never
+  recurring:
+    repository: todo-recurring
+    tag: latest
+    pullPolicy: Never
+  audit:
+    repository: todo-audit
+    tag: latest
+    pullPolicy: Never

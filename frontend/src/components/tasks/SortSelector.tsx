@@ -2,66 +2,60 @@
 
 import { Button } from '@/components/ui/button';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import type { TaskSortBy, SortOrder } from '@/types';
 
 interface SortSelectorProps {
   sortBy: TaskSortBy;
-  order: SortOrder;
+  sortOrder: SortOrder;
   onSortChange: (sortBy: TaskSortBy, order: SortOrder) => void;
 }
 
-const sortLabels: Record<TaskSortBy, string> = {
-  created_at: 'Date Created',
-  updated_at: 'Last Updated',
-  due_date: 'Due Date',
-  priority: 'Priority',
-  title: 'Title',
-};
+export function SortSelector({ sortBy, sortOrder, onSortChange }: SortSelectorProps) {
+  const sortOptions = [
+    { value: 'created_at', label: 'Date Created' },
+    { value: 'due_date', label: 'Due Date' },
+    { value: 'priority', label: 'Priority' },
+    { value: 'title', label: 'Title' },
+  ];
 
-export function SortSelector({ sortBy, order, onSortChange }: SortSelectorProps) {
-  const toggleOrder = () => {
-    onSortChange(sortBy, order === 'asc' ? 'desc' : 'asc');
+  const handleSortByChange = (value: string) => {
+    onSortChange(value as TaskSortBy, sortOrder);
+  };
+
+  const handleSortOrderChange = (value: string) => {
+    onSortChange(sortBy, value as SortOrder);
   };
 
   return (
-    <div className="flex items-center gap-1">
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm">
-            <ArrowUpDown className="mr-2 h-4 w-4" />
-            {sortLabels[sortBy]}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuLabel>Sort by</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          {(Object.keys(sortLabels) as TaskSortBy[]).map((sort) => (
-            <DropdownMenuItem
-              key={sort}
-              onClick={() => onSortChange(sort, order)}
-              className={sortBy === sort ? 'bg-accent' : ''}
-            >
-              {sortLabels[sort]}
-            </DropdownMenuItem>
+    <div className="flex items-center gap-2">
+      <Select value={sortBy} onValueChange={handleSortByChange}>
+        <SelectTrigger className="w-[180px]">
+          <SelectValue placeholder="Sort by" />
+        </SelectTrigger>
+        <SelectContent>
+          {sortOptions.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
           ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </SelectContent>
+      </Select>
 
-      <Button variant="outline" size="sm" onClick={toggleOrder}>
-        {order === 'asc' ? (
-          <ArrowUp className="h-4 w-4" />
-        ) : (
-          <ArrowDown className="h-4 w-4" />
-        )}
-      </Button>
+      <Select value={sortOrder} onValueChange={handleSortOrderChange}>
+        <SelectTrigger className="w-[100px]">
+          <SelectValue placeholder="Order" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="asc">Ascending</SelectItem>
+          <SelectItem value="desc">Descending</SelectItem>
+        </SelectContent>
+      </Select>
     </div>
   );
 }

@@ -1,0 +1,88 @@
+replicaCount:
+  backend: 3
+  frontend: 2
+  notification: 2
+  recurring: 1
+  audit: 1
+
+images:
+  backend:
+    repository: ghcr.io/your-org/todo-backend
+    tag: latest
+    pullPolicy: Always
+  frontend:
+    repository: ghcr.io/your-org/todo-frontend
+    tag: latest
+    pullPolicy: Always
+  notification:
+    repository: ghcr.io/your-org/todo-notification
+    tag: latest
+    pullPolicy: Always
+  recurring:
+    repository: ghcr.io/your-org/todo-recurring
+    tag: latest
+    pullPolicy: Always
+  audit:
+    repository: ghcr.io/your-org/todo-audit
+    tag: latest
+    pullPolicy: Always
+
+backend:
+  corsOrigins: "https://todo.example.com"
+
+frontend:
+  apiUrl: "https://todo.example.com/api"
+  wsUrl: "wss://todo.example.com/ws"
+
+service:
+  frontend:
+    type: ClusterIP
+
+ingress:
+  enabled: true
+  className: nginx
+  host: "todo.example.com"
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  tls:
+    - secretName: todo-tls
+      hosts:
+        - todo.example.com
+
+resources:
+  backend:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  frontend:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  notification:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  recurring:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  audit:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi

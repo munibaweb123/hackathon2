@@ -1,0 +1,34 @@
+# Values for core services only
+backend:
+  enabled: true
+  env:
+    - name: DATABASE_URL
+      value: "postgresql://postgres:postgres123@postgres.postgres.svc.cluster.local:5432/todo_db"
+  image:
+    repository: todo-backend
+    tag: latest
+    pullPolicy: Never
+
+frontend:
+  enabled: true
+  image:
+    repository: todo-frontend
+    tag: latest
+    pullPolicy: Never
+  service:
+    type: NodePort
+
+# Disable non-essential services by overriding their replica counts
+notification:
+  replicaCount: 0
+
+recurring:
+  replicaCount: 0
+
+audit:
+  replicaCount: 0
+
+# Kafka configuration
+global:
+  kafka:
+    brokers: "my-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092"

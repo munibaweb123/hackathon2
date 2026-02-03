@@ -1,0 +1,23 @@
+provisionDataStore:
+  cassandra: false
+
+allInOne:
+  enabled: true
+  image: jaegertracing/all-in-one
+  tag: latest
+
+storage:
+  type: memory
+
+collector:
+  service:
+    zipkin:
+      port: 9411
+
+query:
+  service:
+    type: ClusterIP
+    port: 16686
+
+agent:
+  enabled: false

@@ -1,0 +1,157 @@
+---
+# Cloud SQL Proxy sidecar configuration
+# Add this container to your deployment spec for Cloud SQL connectivity
+#
+# Usage: Include this sidecar in deployments that need database access
+# The proxy handles authentication and encryption to Cloud SQL
+
+# Example sidecar container specification
+# Add to spec.template.spec.containers in your deployment:
+#
+# - name: cloudsql-proxy
+#   image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.8.0
+#   args:
+#     - "--structured-logs"
+#     - "--auto-iam-authn"
+#     - "--port=5432"
+#     - "PROJECT_ID:REGION:INSTANCE_NAME"
+#   securityContext:
+#     runAsNonRoot: true
+#   resources:
+#     requests:
+#       cpu: "50m"
+#       memory: "64Mi"
+#     limits:
+#       cpu: "100m"
+#       memory: "128Mi"
+
+---
+# ConfigMap for Cloud SQL Proxy configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudsql-proxy-config
+  namespace: todo-app
+data:
+  # Cloud SQL instance connection name
+  # Format: PROJECT_ID:REGION:INSTANCE_NAME
+  instance-connection-name: "YOUR_PROJECT_ID:us-central1:todo-postgres"
+
+---
+# Service Account for Cloud SQL access via Workload Identity
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: todo-app-sa
+  namespace: todo-app
+  annotations:
+    # Bind to GCP service account for Workload Identity
+    iam.gke.io/gcp-service-account: todo-app-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com
+
+---
+# Example deployment with Cloud SQL Proxy sidecar
+# This shows how to configure a deployment with the proxy
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: example-with-cloudsql
+  namespace: todo-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: example-with-cloudsql
+  template:
+    metadata:
+      labels:
+        app: example-with-cloudsql
+    spec:
+      serviceAccountName: todo-app-sa
+      containers:
+        # Main application container
+        - name: app
+          image: your-app-image:latest
+          ports:
+            - containerPort: 8000
+          env:
+            # Database connection string pointing to localhost (proxy)
+            - name: DATABASE_URL
+              value: "postgresql://$(DB_USER):$(DB_PASSWORD)@127.0.0.1:5432/$(DB_NAME)"
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: password
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: database
+
+        # Cloud SQL Proxy sidecar
+        - name: cloudsql-proxy
+          image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.8.0
+          args:
+            - "--structured-logs"
+            - "--auto-iam-authn"  # Use Workload Identity for auth
+            - "--port=5432"
+            - "$(INSTANCE_CONNECTION_NAME)"
+          env:
+            - name: INSTANCE_CONNECTION_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: cloudsql-proxy-config
+                  key: instance-connection-name
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
+          # Health check for the proxy
+          livenessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: 5432
+            initialDelaySeconds: 5
+            periodSeconds: 5
+
+---
+# Alternative: Using Cloud SQL Proxy with service account key (not recommended for production)
+# Only use this method if Workload Identity is not available
+#
+# 1. Create a secret with the service account key:
+#    kubectl create secret generic cloudsql-sa-key \
+#      --from-file=credentials.json=path/to/key.json
+#
+# 2. Mount the secret and set GOOGLE_APPLICATION_CREDENTIALS:
+#
+# volumes:
+#   - name: cloudsql-sa-key
+#     secret:
+#       secretName: cloudsql-sa-key
+#
+# containers:
+#   - name: cloudsql-proxy
+#     image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.8.0
+#     args:
+#       - "--credentials-file=/secrets/credentials.json"
+#       - "--port=5432"
+#       - "PROJECT:REGION:INSTANCE"
+#     volumeMounts:
+#       - name: cloudsql-sa-key
+#         mountPath: /secrets
+#         readOnly: true

@@ -1,67 +1,60 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
-import { Search, X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Search } from 'lucide-react';
 
 interface SearchBarProps {
-  value?: string;
+  value: string;
   onChange: (value: string) => void;
   placeholder?: string;
-  debounceMs?: number;
+  delay?: number;
 }
 
-export function SearchBar({
-  value = '',
-  onChange,
-  placeholder = 'Search tasks...',
-  debounceMs = 300,
-}: SearchBarProps) {
-  const [localValue, setLocalValue] = useState(value);
+export function SearchBar({ value, onChange, placeholder = 'Search tasks...', delay = 300 }: SearchBarProps) {
+  const [inputValue, setInputValue] = useState(value);
+  const onChangeRef = useRef(onChange);
+  const previousValueRef = useRef(value);
 
-  // Sync local value with external value
+  // Keep the ref updated with the latest onChange
   useEffect(() => {
-    setLocalValue(value);
-  }, [value]);
-
-  // Debounced onChange
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (localValue !== value) {
-        onChange(localValue);
-      }
-    }, debounceMs);
-
-    return () => clearTimeout(timer);
-  }, [localValue, debounceMs, onChange, value]);
-
-  const handleClear = useCallback(() => {
-    setLocalValue('');
-    onChange('');
+    onChangeRef.current = onChange;
   }, [onChange]);
 
+  // Update local input when external value changes
+  useEffect(() => {
+    setInputValue(value);
+    previousValueRef.current = value;
+  }, [value]);
+
+  // Debounced search effect - only call onChange if value actually changed
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      if (inputValue !== previousValueRef.current) {
+        previousValueRef.current = inputValue;
+        onChangeRef.current(inputValue);
+      }
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [inputValue, delay]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputValue(e.target.value);
+  };
+
   return (
-    <div className="relative flex-1 max-w-md">
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+    <div className="relative w-full max-w-sm">
+      <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       <Input
-        type="text"
-        value={localValue}
-        onChange={(e) => setLocalValue(e.target.value)}
+        type="search"
         placeholder={placeholder}
-        className="pl-9 pr-9"
+        value={inputValue}
+        onChange={handleChange}
+        className="pl-8"
       />
-      {localValue && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
-          onClick={handleClear}
-        >
-          <X className="h-4 w-4" />
-          <span className="sr-only">Clear search</span>
-        </Button>
-      )}
     </div>
   );
 }

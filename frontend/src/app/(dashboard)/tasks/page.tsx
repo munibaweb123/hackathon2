@@ -1,21 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { TaskList } from '@/components/tasks/task-list';
 import { TaskForm } from '@/components/tasks/task-form';
-import { TaskFiltersComponent } from '@/components/tasks/TaskFilters';
-import { SearchBar } from '@/components/tasks/SearchBar';
-import { SortSelector } from '@/components/tasks/SortSelector';
-import { DateRangeFilter } from '@/components/tasks/DateRangeFilter';
+import { TaskFilters } from '@/components/tasks/task-filters';
 import { ReminderForm } from '@/components/reminders/reminder-form';
+import { SearchBar } from '@/components/tasks/SearchBar';
+import { DateRangeFilter } from '@/components/tasks/DateRangeFilter';
+import { ConnectionStatusBadge } from '@/components/layout/ConnectionStatus';
 import { useAuth } from '@/hooks/use-auth';
 import { useTasks } from '@/hooks/use-tasks';
+import { useRealtimeSync, TaskUpdateEvent } from '@/hooks/use-realtime-sync';
 import { jwtApiClient } from '@/services/auth/api-client';
-import type { Task, CreateTaskInput, UpdateTaskInput, TaskSortBy, SortOrder } from '@/types';
-import { X, Filter } from 'lucide-react';
+import { apiClient } from '@/lib/api-client';
+import type { Task, CreateTaskInput, UpdateTaskInput, Reminder, Tag, TaskFilters as TaskFiltersType } from '@/types';
 
 export default function TasksPage() {
   const { user } = useAuth();
@@ -27,16 +28,12 @@ export default function TasksPage() {
     completedCount,
     pendingCount,
     totalCount,
-    hasActiveFilters,
     fetchTasks,
     createTask,
     updateTask,
     deleteTask,
     toggleComplete,
     updateFilters,
-    setSearch,
-    setDateRange,
-    clearFilters,
   } = useTasks();
 
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -44,7 +41,86 @@ export default function TasksPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showReminderForm, setShowReminderForm] = useState(false);
   const [selectedTaskForReminder, setSelectedTaskForReminder] = useState<Task | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dueBefore, setDueBefore] = useState<Date | undefined>(undefined);
+  const [dueAfter, setDueAfter] = useState<Date | undefined>(undefined);
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+
+  // Real-time sync handlers
+  const handleTaskCreated = useCallback((event: TaskUpdateEvent) => {
+    toast.info(`New task added: ${event.task_id}`);
+    fetchTasks(); // Refetch to get the new task
+  }, [fetchTasks]);
+
+  const handleTaskUpdated = useCallback((event: TaskUpdateEvent) => {
+    toast.info(`Task updated: ${event.task_id}`);
+    fetchTasks(); // Refetch to get updated data
+  }, [fetchTasks]);
+
+  const handleTaskDeleted = useCallback((event: TaskUpdateEvent) => {
+    toast.info(`Task deleted: ${event.task_id}`);
+    fetchTasks(); // Refetch to remove deleted task
+  }, [fetchTasks]);
+
+  const handleTaskCompleted = useCallback((event: TaskUpdateEvent) => {
+    toast.success(`Task completed: ${event.task_id}`);
+    fetchTasks(); // Refetch to update status
+  }, [fetchTasks]);
+
+  // Set up real-time sync
+  const { isConnected } = useRealtimeSync({
+    onTaskCreated: handleTaskCreated,
+    onTaskUpdated: handleTaskUpdated,
+    onTaskDeleted: handleTaskDeleted,
+    onTaskCompleted: handleTaskCompleted,
+    autoConnect: true,
+  });
+
+  // Fetch tags on component mount
+  useEffect(() => {
+    const fetchTags = async () => {
+      try {
+        const tags = await apiClient.getTags();
+        setAllTags(tags);
+      } catch (err) {
+        console.error('Failed to fetch tags:', err);
+        // Don't show error toast - tags are optional
+      }
+    };
+
+    fetchTags();
+  }, []);
+
+  // Enhanced updateFilters to handle search and date range
+  const handleUpdateFilters = (newFilters: Partial<TaskFiltersType>) => {
+    // Update search and date range filters separately
+    if (newFilters.searchQuery !== undefined) {
+      setSearchQuery(newFilters.searchQuery);
+    }
+    if (newFilters.dueBefore !== undefined) {
+      setDueBefore(newFilters.dueBefore ? new Date(newFilters.dueBefore) : undefined);
+    }
+    if (newFilters.dueAfter !== undefined) {
+      setDueAfter(newFilters.dueAfter ? new Date(newFilters.dueAfter) : undefined);
+    }
+
+    // Update the main filters
+    updateFilters(newFilters);
+  };
+
+  const handleSearchChange = useCallback((query: string) => {
+    updateFilters({ searchQuery: query });
+  }, [updateFilters]);
+
+  const handleDueBeforeChange = useCallback((date: Date | undefined) => {
+    setDueBefore(date);
+    updateFilters({ dueBefore: date ? date.toISOString() : undefined });
+  }, [updateFilters]);
+
+  const handleDueAfterChange = useCallback((date: Date | undefined) => {
+    setDueAfter(date);
+    updateFilters({ dueAfter: date ? date.toISOString() : undefined });
+  }, [updateFilters]);
 
   const handleCreateTask = async (data: CreateTaskInput) => {
     setIsSubmitting(true);
@@ -99,6 +175,8 @@ export default function TasksPage() {
   };
 
   const handleManageReminders = (task: Task) => {
+    // In a real implementation, this would navigate to a reminders page
+    // For now, we'll just show a toast
     toast.info(`Managing reminders for task: ${task.title}`);
   };
 
@@ -108,6 +186,8 @@ export default function TasksPage() {
       toast.success('Reminder created successfully');
       setShowReminderForm(false);
       setSelectedTaskForReminder(null);
+
+      // Refetch tasks to update the list with the new reminder
       fetchTasks();
     } catch (err) {
       console.error('Failed to create reminder:', err);
@@ -115,12 +195,11 @@ export default function TasksPage() {
     }
   };
 
-  const handleSortChange = (sortBy: TaskSortBy, order: SortOrder) => {
-    updateFilters({ sortBy, order });
-  };
-
   return (
     <div className="space-y-6">
+      {/* Connection Status Badge */}
+      <ConnectionStatusBadge />
+
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
@@ -143,91 +222,48 @@ export default function TasksPage() {
         </Card>
       </div>
 
-      {/* Search and Actions Row */}
-      <div className="flex flex-col gap-4">
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-          {/* Search Bar */}
-          <SearchBar
-            value={filters.search}
-            onChange={setSearch}
-            placeholder="Search tasks..."
-          />
-
-          {/* Action Buttons */}
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowFilters(!showFilters)}
-              className={hasActiveFilters ? 'bg-primary/10' : ''}
-            >
-              <Filter className="mr-2 h-4 w-4" />
-              Filters
-              {hasActiveFilters && (
-                <span className="ml-1 rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
-                  Active
-                </span>
-              )}
-            </Button>
-            <Button onClick={() => setIsFormOpen(true)}>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="mr-2"
-              >
-                <path d="M12 5v14" />
-                <path d="M5 12h14" />
-              </svg>
-              Add Task
-            </Button>
+      {/* Filters Row */}
+      <div className="flex flex-col lg:flex-row gap-4 justify-between">
+        <div className="flex flex-col gap-4 w-full lg:w-auto">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <TaskFilters filters={filters} onFilterChange={updateFilters} />
           </div>
-        </div>
 
-        {/* Filters Row (Collapsible) */}
-        {showFilters && (
-          <div className="flex flex-col gap-4 p-4 bg-muted/50 rounded-lg">
-            <div className="flex flex-wrap items-center gap-4">
-              {/* Status and Priority Filters */}
-              <TaskFiltersComponent filters={filters} onFilterChange={updateFilters} />
-
-              {/* Date Range Filter */}
-              <DateRangeFilter
-                dueAfter={filters.dueAfter}
-                dueBefore={filters.dueBefore}
-                onDateRangeChange={setDateRange}
-              />
-
-              {/* Sort Selector */}
-              <SortSelector
-                sortBy={filters.sortBy}
-                order={filters.order}
-                onSortChange={handleSortChange}
+          {/* Search and Date Range */}
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex-1 max-w-md">
+              <SearchBar
+                value={filters.searchQuery || ''}
+                onChange={handleSearchChange}
+                placeholder="Search tasks..."
               />
             </div>
-
-            {/* Clear All Filters */}
-            {hasActiveFilters && (
-              <div className="flex justify-end">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearFilters}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <X className="mr-1 h-4 w-4" />
-                  Clear All Filters
-                </Button>
-              </div>
-            )}
+            <DateRangeFilter
+              startDate={dueAfter}
+              endDate={dueBefore}
+              onStartDateChange={handleDueAfterChange}
+              onEndDateChange={handleDueBeforeChange}
+            />
           </div>
-        )}
+        </div>
+        <Button onClick={() => setIsFormOpen(true)}>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="mr-2"
+          >
+            <path d="M12 5v14" />
+            <path d="M5 12h14" />
+          </svg>
+          Add Task
+        </Button>
       </div>
 
       {/* Error State */}
@@ -244,9 +280,7 @@ export default function TasksPage() {
         <CardHeader>
           <CardTitle>Your Tasks</CardTitle>
           <CardDescription>
-            {hasActiveFilters
-              ? `Showing ${totalCount} filtered results`
-              : 'Manage your tasks and stay organized'}
+            Manage your tasks and stay organized
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -266,7 +300,7 @@ export default function TasksPage() {
       <TaskForm
         open={isFormOpen}
         onOpenChange={setIsFormOpen}
-        allTags={[]}
+        allTags={allTags}
         onSubmit={handleCreateTask}
         isLoading={isSubmitting}
       />
@@ -276,7 +310,7 @@ export default function TasksPage() {
         open={!!editingTask}
         onOpenChange={(open) => !open && setEditingTask(null)}
         task={editingTask}
-        allTags={[]}
+        allTags={allTags}
         onSubmit={handleUpdateTask}
         isLoading={isSubmitting}
       />

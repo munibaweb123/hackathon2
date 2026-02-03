@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import type { TaskFilters, TaskStatus, TaskSortBy, SortOrder } from '@/types';
+import type { TaskFilters, TaskStatus, TaskSortBy, SortOrder, TaskPriority } from '@/types';
 
 interface TaskFiltersProps {
   filters: TaskFilters;
@@ -20,6 +20,13 @@ const statusLabels: Record<TaskStatus, string> = {
   all: 'All Tasks',
   pending: 'Pending',
   completed: 'Completed',
+};
+
+const priorityLabels: Record<TaskPriority, string> = {
+  none: 'All Priorities',
+  low: 'Low Priority',
+  medium: 'Medium Priority',
+  high: 'High Priority',
 };
 
 const sortLabels: Record<TaskSortBy, string> = {
@@ -50,6 +57,28 @@ export function TaskFilters({ filters, onFilterChange }: TaskFiltersProps) {
               className={filters.status === status ? 'bg-accent' : ''}
             >
               {statusLabels[status]}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Priority Filter */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm">
+            Priority: {priorityLabels[filters.priority || 'none']}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuLabel>Filter by priority</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {(Object.keys(priorityLabels) as TaskPriority[]).map((priority) => (
+            <DropdownMenuItem
+              key={priority}
+              onClick={() => onFilterChange({ priority: priority !== 'none' ? priority : undefined })}
+              className={(filters.priority || 'none') === priority ? 'bg-accent' : ''}
+            >
+              {priorityLabels[priority]}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>

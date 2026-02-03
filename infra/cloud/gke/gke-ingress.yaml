@@ -1,0 +1,147 @@
+---
+# Google-managed SSL Certificate
+# This will automatically provision and renew SSL certificates
+apiVersion: networking.gke.io/v1
+kind: ManagedCertificate
+metadata:
+  name: todo-app-cert
+  namespace: todo-app
+spec:
+  domains:
+    - todo.example.com  # Replace with your domain
+---
+# Backend Config for health checks and Cloud CDN
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: todo-backend-config
+  namespace: todo-app
+spec:
+  # Health check configuration
+  healthCheck:
+    checkIntervalSec: 15
+    timeoutSec: 5
+    healthyThreshold: 1
+    unhealthyThreshold: 2
+    type: HTTP
+    requestPath: /health
+    port: 8000
+  # Connection draining
+  connectionDraining:
+    drainingTimeoutSec: 30
+  # Cloud CDN (optional - enable for static content caching)
+  cdn:
+    enabled: false
+    cachePolicy:
+      includeHost: true
+      includeProtocol: true
+      includeQueryString: false
+  # Request logging
+  logging:
+    enable: true
+    sampleRate: 0.5
+  # Session affinity (optional)
+  sessionAffinity:
+    affinityType: "CLIENT_IP"
+    affinityCookieTtlSec: 3600
+  # Security policy (optional - for Cloud Armor)
+  # securityPolicy:
+  #   name: "todo-security-policy"
+---
+# Backend Config for frontend
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: todo-frontend-config
+  namespace: todo-app
+spec:
+  healthCheck:
+    checkIntervalSec: 15
+    timeoutSec: 5
+    healthyThreshold: 1
+    unhealthyThreshold: 2
+    type: HTTP
+    requestPath: /
+    port: 3000
+  connectionDraining:
+    drainingTimeoutSec: 30
+  cdn:
+    enabled: true  # Enable CDN for frontend static assets
+    cachePolicy:
+      includeHost: true
+      includeProtocol: true
+      includeQueryString: true
+  logging:
+    enable: true
+    sampleRate: 0.5
+---
+# Frontend Redirect (HTTP to HTTPS)
+apiVersion: networking.gke.io/v1beta1
+kind: FrontendConfig
+metadata:
+  name: todo-frontend-redirect
+  namespace: todo-app
+spec:
+  redirectToHttps:
+    enabled: true
+    responseCodeName: MOVED_PERMANENTLY_DEFAULT
+---
+# Main Ingress resource
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: todo-app-ingress
+  namespace: todo-app
+  annotations:
+    # Use GCE ingress controller
+    kubernetes.io/ingress.class: "gce"
+    # Static IP (create with: gcloud compute addresses create todo-app-ip --global)
+    kubernetes.io/ingress.global-static-ip-name: "todo-app-ip"
+    # Managed SSL certificate
+    networking.gke.io/managed-certificates: "todo-app-cert"
+    # Frontend config for HTTP to HTTPS redirect
+    networking.gke.io/v1beta1.FrontendConfig: "todo-frontend-redirect"
+spec:
+  rules:
+    - host: todo.example.com  # Replace with your domain
+      http:
+        paths:
+          # API routes
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: todo-app-backend
+                port:
+                  number: 8000
+          # WebSocket routes
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: todo-app-backend
+                port:
+                  number: 8000
+          # Health check endpoint
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: todo-app-backend
+                port:
+                  number: 8000
+          # Frontend (catch-all)
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: todo-app-frontend
+                port:
+                  number: 3000
+---
+# Service annotations for backend config binding
+# Add these annotations to your services in Helm values
+# metadata:
+#   annotations:
+#     cloud.google.com/backend-config: '{"default": "todo-backend-config"}'
+#     cloud.google.com/neg: '{"ingress": true}'

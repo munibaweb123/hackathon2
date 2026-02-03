@@ -1,74 +1,130 @@
-# ===================================
-# Development Docker Compose Configuration
-# Optimized for fast feedback loops with hot-reloading
-# ===================================
-
 version: "3.8"
 
 services:
-  # Backend API service (development)
+  # PostgreSQL database
+  db:
+    image: postgres:16-alpine
+    container_name: hackathon-todo-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: hackathon_todo
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hackathon-network
+
+  # Backend API service
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     container_name: hackathon-todo-backend
     ports:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/hackathon_todo
-      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
-      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
       - BETTER_AUTH_URL=http://localhost:3000
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - DEBUG=true
+      - BETTER_AUTH_SECRET=dev-secret-key-for-docker
+      - CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
+      - API_PREFIX=/api
+      - OPENAI_API_KEY=not-set
+      - LLM_PROVIDER=openai
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - ./backend:/app
-      - /app/__pycache__
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
     networks:
       - hackathon-network
 
-  # Frontend Next.js service (development)
+  # Frontend Next.js service
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     container_name: hackathon-todo-frontend
     ports:
       - "3000:3000"
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
-      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-dev-auth-secret}
+      - NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws
+      - BETTER_AUTH_SECRET=dev-secret-key-for-docker
       - BETTER_AUTH_URL=http://localhost:3000
-      - WATCHPACK_POLLING=true
     depends_on:
       - backend
     volumes:
       - ./frontend:/app
       - /app/node_modules
       - /app/.next
+    command: npm run dev
+    restart: unless-stopped
     networks:
       - hackathon-network
 
-  # PostgreSQL database
-  db:
-    image: postgres:15-alpine
-    container_name: hackathon-todo-db
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=hackathon_todo
+  # Notification microservice
+  notification:
+    build:
+      context: .
+      dockerfile: infra/docker/notification.Dockerfile
+    container_name: hackathon-todo-notification
     ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d hackathon_todo"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/hackathon_todo
+      - DAPR_HTTP_PORT=3501
+      - PUBSUB_NAME=kafka-pubsub
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - hackathon-network
+
+  # Recurring task microservice
+  recurring:
+    build:
+      context: .
+      dockerfile: infra/docker/recurring.Dockerfile
+    container_name: hackathon-todo-recurring
+    ports:
+      - "8002:8002"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/hackathon_todo
+      - DAPR_HTTP_PORT=3502
+      - PUBSUB_NAME=kafka-pubsub
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - hackathon-network
+
+  # Audit microservice
+  audit:
+    build:
+      context: .
+      dockerfile: infra/docker/audit.Dockerfile
+    container_name: hackathon-todo-audit
+    ports:
+      - "8003:8003"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/hackathon_todo
+      - DAPR_HTTP_PORT=3503
+      - PUBSUB_NAME=kafka-pubsub
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
     networks:
       - hackathon-network
 
