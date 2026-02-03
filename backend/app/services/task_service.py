@@ -84,6 +84,44 @@ def _ensure_user_exists(session: Session, user_id: str) -> None:
         logger.info(f"Created placeholder user for user_id: {user_id}")
 
 
+async def create_task_async(title: str, description: Optional[str], user_id: str, priority: str = "medium") -> Task:
+    """
+    Create a new task for a user and publish event.
+
+    Args:
+        title: Title of the task
+        description: Description of the task
+        user_id: ID of the user creating the task
+        priority: Priority level of the task (low, medium, high)
+
+    Returns:
+        Created Task object
+    """
+    from ..core.database import engine
+    from ..models.task import Priority
+    with Session(engine) as session:
+        # Ensure the user exists before creating the task
+        _ensure_user_exists(session, user_id)
+
+        task = Task(
+            title=title,
+            description=description,
+            user_id=user_id,
+            priority=Priority(priority) if priority in ["low", "medium", "high"] else Priority.MEDIUM
+        )
+        session.add(task)
+        session.commit()
+        session.refresh(task)
+
+        # Publish task update event for real-time sync
+        await publish_task_update_event(task.id, task.user_id, {
+            "action": "create",
+            "task_data": task.dict() if hasattr(task, 'dict') else task.__dict__
+        })
+
+        return task
+
+
 def create_task(title: str, description: Optional[str], user_id: str, priority: str = "medium") -> Task:
     """
     Create a new task for a user.
@@ -112,6 +150,44 @@ def create_task(title: str, description: Optional[str], user_id: str, priority: 
         session.add(task)
         session.commit()
         session.refresh(task)
+        return task
+
+
+async def update_task_async(task_id: int, user_id: str, **updates) -> Optional[Task]:
+    """
+    Update a task for a user and publish event.
+
+    Args:
+        task_id: ID of the task to update
+        user_id: ID of the user who owns the task
+        **updates: Fields to update
+
+    Returns:
+        Updated Task object if successful, None if task not found
+    """
+    from ..core.database import engine
+    with Session(engine) as session:
+        # First get the task
+        statement = select(Task).where(Task.id == task_id, Task.user_id == user_id)
+        task = session.exec(statement).first()
+
+        if not task:
+            return None
+
+        # Store original values to track changes
+        original_values = {}
+        for field, value in updates.items():
+            if hasattr(task, field):
+                original_values[field] = getattr(task, field)
+                setattr(task, field, value)
+
+        session.commit()
+        session.refresh(task)
+
+        # Publish task update event for real-time sync
+        changes = {"action": "update", "updated_fields": list(updates.keys()), "original_values": original_values}
+        await publish_task_update_event(task.id, task.user_id, changes)
+
         return task
 
 
@@ -146,6 +222,44 @@ def update_task(task_id: int, user_id: str, **updates) -> Optional[Task]:
         return task
 
 
+async def delete_task_async(task_id: int, user_id: str) -> bool:
+    """
+    Delete a task for a user and publish event.
+
+    Args:
+        task_id: ID of the task to delete
+        user_id: ID of the user who owns the task
+
+    Returns:
+        True if task was deleted, False if task not found
+    """
+    from ..core.database import engine
+    from ..models.task import Task
+    with Session(engine) as session:
+        statement = select(Task).where(Task.id == task_id, Task.user_id == user_id)
+        task = session.exec(statement).first()
+
+        if not task:
+            return False
+
+        # Store task data before deletion for the event
+        task_data = {
+            "id": task.id,
+            "title": task.title,
+            "description": task.description,
+            "user_id": task.user_id
+        }
+
+        session.delete(task)
+        session.commit()
+
+        # Publish task update event for real-time sync
+        changes = {"action": "delete", "deleted_task": task_data}
+        await publish_task_update_event(task_id, user_id, changes)
+
+        return True
+
+
 def delete_task(task_id: int, user_id: str) -> bool:
     """
     Delete a task for a user.
@@ -168,6 +282,21 @@ def delete_task(task_id: int, user_id: str) -> bool:
         session.delete(task)
         session.commit()
         return True
+
+
+async def complete_task_async(task_id: int, user_id: str, completed: bool = True) -> Optional[Task]:
+    """
+    Mark a task as completed or incomplete and publish event.
+
+    Args:
+        task_id: ID of the task to update
+        user_id: ID of the user who owns the task
+        completed: Whether the task is completed (default True)
+
+    Returns:
+        Updated Task object if successful, None if task not found
+    """
+    return await update_task_async(task_id, user_id, completed=completed)
 
 
 def complete_task(task_id: int, user_id: str, completed: bool = True) -> Optional[Task]:
@@ -224,6 +353,27 @@ async def publish_task_event(
     )
 
 
+async def publish_task_update_event(task_id: int, user_id: str, changes: dict) -> bool:
+    """
+    Publish a task update event for real-time sync.
+
+    Args:
+        task_id: The task ID that was updated
+        user_id: The user who owns the task
+        changes: Dictionary of changes made to the task
+
+    Returns:
+        True if published successfully
+    """
+    publisher = get_event_publisher()
+    return await publisher.publish_task_update_event(
+        task_id=task_id,
+        user_id=user_id,
+        changes=changes,
+        full_task=None  # We'll send minimal data for sync
+    )
+
+
 async def publish_reminder_for_task(task: Task) -> bool:
     """
     Publish a reminder event for a task.
@@ -251,6 +401,84 @@ async def publish_reminder_for_task(task: Task) -> bool:
         },
         description=task.description,
     )
+
+
+async def create_task_with_reminder_async(
+    title: str,
+    user_id: str,
+    description: Optional[str] = None,
+    priority: str = "medium",
+    due_date: Optional[datetime] = None,
+    reminder_at: Optional[datetime] = None,
+    recurrence_pattern_id: Optional[str] = None,
+    tag_ids: Optional[List[str]] = None,
+) -> Task:
+    """
+    Create a new task with optional reminder scheduling, recurrence, and tags.
+
+    Args:
+        title: Title of the task
+        user_id: ID of the user creating the task
+        description: Description of the task
+        priority: Priority level of the task (low, medium, high)
+        due_date: Due date for the task
+        reminder_at: When to send reminder notification
+        recurrence_pattern_id: Optional recurrence pattern ID
+        tag_ids: Optional list of tag IDs to associate with the task
+
+    Returns:
+        Created Task object
+    """
+    from ..core.database import engine
+    from ..models.task import Priority as PriorityEnum
+    from ..models.task_tag import TaskTag
+    from uuid import UUID
+
+    with Session(engine) as session:
+        # Ensure the user exists before creating the task
+        _ensure_user_exists(session, user_id)
+
+        task = Task(
+            title=title,
+            description=description,
+            user_id=user_id,
+            priority=PriorityEnum(priority) if priority in ["low", "medium", "high", "none"] else PriorityEnum.MEDIUM,
+            due_date=due_date,
+            reminder_at=reminder_at,
+            recurrence_id=recurrence_pattern_id,
+        )
+        session.add(task)
+        session.commit()
+        session.refresh(task)
+
+        # Add tags to the task if provided
+        if tag_ids:
+            for tag_id_str in tag_ids:
+                try:
+                    tag_id = UUID(tag_id_str)
+                    task_tag = TaskTag(task_id=task.id, tag_id=tag_id)
+                    session.add(task_tag)
+                except ValueError:
+                    # Skip invalid UUIDs
+                    continue
+            session.commit()
+
+        # Publish task update event for real-time sync
+        await publish_task_update_event(task.id, task.user_id, {
+            "action": "create",
+            "task_data": {
+                "id": task.id,
+                "title": task.title,
+                "description": task.description,
+                "user_id": task.user_id,
+                "priority": task.priority.value if hasattr(task.priority, 'value') else str(task.priority),
+                "due_date": task.due_date.isoformat() if task.due_date else None,
+                "reminder_at": task.reminder_at.isoformat() if task.reminder_at else None,
+                "recurrence_id": str(task.recurrence_id) if task.recurrence_id else None,
+            }
+        })
+
+        return task
 
 
 def create_task_with_reminder(
@@ -314,6 +542,93 @@ def create_task_with_reminder(
             session.commit()
 
         # Note: Event publishing should be done by the caller in an async context
+        return task
+
+
+async def update_task_with_tags_async(
+    task_id: int,
+    user_id: str,
+    **updates
+) -> Optional[Task]:
+    """
+    Update a task and optionally update its tags.
+
+    Args:
+        task_id: ID of the task to update
+        user_id: ID of the user who owns the task
+        **updates: Fields to update, including optional 'tag_ids' field
+
+    Returns:
+        Updated Task object if successful, None if task not found
+    """
+    from ..core.database import engine
+    from ..models.task_tag import TaskTag
+    from uuid import UUID
+
+    with Session(engine) as session:
+        # First get the task
+        statement = select(Task).where(Task.id == task_id, Task.user_id == user_id)
+        task = session.exec(statement).first()
+
+        if not task:
+            return None
+
+        # Store original values to track changes
+        original_values = {}
+        for field, value in updates.items():
+            if hasattr(task, field):
+                original_values[field] = getattr(task, field)
+
+        # Separate tag_ids from other updates
+        tag_ids = updates.pop('tag_ids', None)
+
+        # Update the task with provided fields
+        for field, value in updates.items():
+            if hasattr(task, field):
+                if field == 'priority':
+                    # Handle priority enum conversion
+                    from ..models.task import Priority as PriorityEnum
+                    if isinstance(value, str):
+                        try:
+                            priority_value = PriorityEnum(value)
+                            setattr(task, field, priority_value)
+                        except ValueError:
+                            # If invalid priority, keep the original value
+                            pass
+                    else:
+                        setattr(task, field, value)
+                else:
+                    setattr(task, field, value)
+
+        session.add(task)
+        session.commit()
+        session.refresh(task)
+
+        # Update tags if provided
+        if tag_ids is not None:
+            # First, remove all existing tags
+            existing_task_tags = session.exec(
+                select(TaskTag).where(TaskTag.task_id == task_id)
+            ).all()
+            for task_tag in existing_task_tags:
+                session.delete(task_tag)
+
+            # Add new tags
+            for tag_id_str in tag_ids:
+                try:
+                    tag_id = UUID(tag_id_str)
+                    task_tag = TaskTag(task_id=task_id, tag_id=tag_id)
+                    session.add(task_tag)
+                except ValueError:
+                    # Skip invalid UUIDs
+                    continue
+
+            session.commit()
+
+        # Publish task update event for real-time sync
+        changes = {"action": "update_with_tags", "updated_fields": list(updates.keys()), "original_values": original_values}
+        await publish_task_update_event(task.id, task.user_id, changes)
+
         return task
 
 

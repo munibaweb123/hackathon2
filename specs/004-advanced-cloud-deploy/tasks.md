@@ -166,18 +166,18 @@
 
 ### Implementation for User Story 4
 
-- [ ] T072 [US4] Create SearchService using PostgreSQL tsvector/tsquery in backend/app/services/search_service.py
-- [ ] T073 [US4] Create search endpoint with full-text search capability in backend/app/api/search.py
-- [ ] T074 [US4] Add filter parameters (status, priority, tags, due_before, due_after) to list tasks endpoint in backend/app/api/tasks.py
-- [ ] T075 [US4] Add sort parameters (due_date, priority, created_at, title) to list tasks endpoint in backend/app/api/tasks.py
-- [ ] T076 [US4] Implement multi-tag filter logic in backend/app/services/task_service.py
-- [ ] T077 [US4] Implement date range filter logic in backend/app/services/task_service.py
-- [ ] T078 [US4] Create TaskFilters component with status/priority/tag selectors in frontend/src/components/tasks/TaskFilters.tsx
-- [ ] T079 [US4] Create DateRangeFilter component in frontend/src/components/tasks/DateRangeFilter.tsx
-- [ ] T080 [US4] Create SearchBar component with debounced input in frontend/src/components/tasks/SearchBar.tsx
-- [ ] T081 [US4] Create SortSelector component in frontend/src/components/tasks/SortSelector.tsx
-- [ ] T082 [US4] Integrate filter/sort components into task list page in frontend/src/app/tasks/page.tsx
-- [ ] T083 [US4] Update use-tasks hook to support filter/sort/search parameters in frontend/src/hooks/use-tasks.ts
+- [X] T072 [US4] Create SearchService using PostgreSQL tsvector/tsquery in backend/app/services/search_service.py
+- [X] T073 [US4] Create search endpoint with full-text search capability in backend/app/api/search.py
+- [X] T074 [US4] Add filter parameters (status, priority, tags, due_before, due_after) to list tasks endpoint in backend/app/api/tasks.py
+- [X] T075 [US4] Add sort parameters (due_date, priority, created_at, title) to list tasks endpoint in backend/app/api/tasks.py
+- [X] T076 [US4] Implement multi-tag filter logic in backend/app/api/tasks.py
+- [X] T077 [US4] Implement date range filter logic in backend/app/api/tasks.py
+- [X] T078 [US4] Create TaskFilters component with status/priority/tag selectors in frontend/src/components/tasks/task-filters.tsx
+- [X] T079 [US4] Create DateRangeFilter component in frontend/src/components/tasks/DateRangeFilter.tsx
+- [X] T080 [US4] Create SearchBar component with debounced input in frontend/src/components/tasks/SearchBar.tsx
+- [X] T081 [US4] Create SortSelector component in frontend/src/components/tasks/SortSelector.tsx
+- [X] T082 [US4] Integrate filter/sort components into task list page in frontend/src/app/tasks/page.tsx
+- [X] T083 [US4] Update use-tasks hook to support filter/sort/search parameters in frontend/src/hooks/use-tasks.ts
 
 **Checkpoint**: User Story 4 complete - full search, filter, and sort functionality
 
@@ -191,16 +191,16 @@
 
 ### Implementation for User Story 5
 
-- [ ] T084 [US5] Publish TaskUpdateEvent on task create/update/delete/complete in backend/app/services/task_service.py
-- [ ] T085 [US5] Create WebSocket service main entry point for real-time sync in backend/services/notification/websocket_service.py
-- [ ] T086 [US5] Implement Dapr subscription for task-updates topic in backend/services/notification/websocket_service.py
-- [ ] T087 [US5] Create WebSocket connection manager with user session tracking in backend/services/notification/connection_manager.py
-- [ ] T088 [US5] Create WebSocket endpoint in main backend API in backend/app/api/websocket.py
-- [ ] T089 [US5] Create websocket-client service for frontend in frontend/src/services/websocket-client.ts
-- [ ] T090 [US5] Create use-realtime-sync hook in frontend/src/hooks/use-realtime-sync.ts
-- [ ] T091 [US5] Integrate realtime sync into task list page in frontend/src/app/tasks/page.tsx
-- [ ] T092 [US5] Add connection status indicator in frontend/src/components/layout/ConnectionStatus.tsx
-- [ ] T093 [US5] Implement optimistic updates with rollback on conflict in frontend/src/hooks/use-tasks.ts
+- [X] T084 [US5] Publish TaskUpdateEvent on task create/update/delete/complete in backend/app/services/task_service.py
+- [X] T085 [US5] Create WebSocket service main entry point for real-time sync in backend/services/notification/websocket_service.py
+- [X] T086 [US5] Implement Dapr subscription for task-updates topic in backend/services/notification/websocket_service.py
+- [X] T087 [US5] Create WebSocket connection manager with user session tracking in backend/services/notification/websocket_service.py
+- [X] T088 [US5] Create WebSocket endpoint in main backend API in backend/app/api/websocket.py
+- [X] T089 [US5] Create websocket-client service for frontend in frontend/src/services/websocket-client.ts
+- [X] T090 [US5] Create use-realtime-sync hook in frontend/src/hooks/use-realtime-sync.ts
+- [X] T091 [US5] Integrate realtime sync into task list page in frontend/src/app/tasks/page.tsx
+- [X] T092 [US5] Add connection status indicator in frontend/src/components/layout/ConnectionStatus.tsx
+- [X] T093 [US5] Implement optimistic updates with rollback on conflict in frontend/src/hooks/use-tasks.ts
 
 **Checkpoint**: User Story 5 complete - real-time sync across devices
 
@@ -214,38 +214,38 @@
 
 ### Infrastructure Setup
 
-- [ ] T094 [P] [US6] Create backend Dockerfile in infra/docker/backend.Dockerfile
-- [ ] T095 [P] [US6] Create frontend Dockerfile in infra/docker/frontend.Dockerfile
-- [ ] T096 [P] [US6] Create notification service Dockerfile in infra/docker/notification.Dockerfile
-- [ ] T097 [P] [US6] Create recurring service Dockerfile in infra/docker/recurring.Dockerfile
-- [ ] T098 [P] [US6] Create audit service Dockerfile in infra/docker/audit.Dockerfile
-- [ ] T099 [US6] Create docker-compose for local development in infra/docker/docker-compose.local.yml
+- [x] T094 [P] [US6] Create backend Dockerfile in infra/docker/backend.Dockerfile
+- [x] T095 [P] [US6] Create frontend Dockerfile in infra/docker/frontend.Dockerfile
+- [x] T096 [P] [US6] Create notification service Dockerfile in infra/docker/notification.Dockerfile
+- [x] T097 [P] [US6] Create recurring service Dockerfile in infra/docker/recurring.Dockerfile
+- [x] T098 [P] [US6] Create audit service Dockerfile in infra/docker/audit.Dockerfile
+- [x] T099 [US6] Create docker-compose for local development in infra/docker/docker-compose.local.yml
 
 ### Helm Charts
 
-- [ ] T100 [US6] Create main Helm chart structure in infra/helm/todo-app/Chart.yaml
-- [ ] T101 [P] [US6] Create backend deployment template in infra/helm/todo-app/templates/backend-deployment.yaml
-- [ ] T102 [P] [US6] Create frontend deployment template in infra/helm/todo-app/templates/frontend-deployment.yaml
-- [ ] T103 [P] [US6] Create notification service deployment template in infra/helm/todo-app/templates/notification-deployment.yaml
-- [ ] T104 [P] [US6] Create recurring service deployment template in infra/helm/todo-app/templates/recurring-deployment.yaml
-- [ ] T105 [P] [US6] Create audit service deployment template in infra/helm/todo-app/templates/audit-deployment.yaml
-- [ ] T106 [US6] Create service templates for all deployments in infra/helm/todo-app/templates/
-- [ ] T107 [US6] Create ingress template in infra/helm/todo-app/templates/ingress.yaml
-- [ ] T108 [P] [US6] Create values.yaml with defaults in infra/helm/todo-app/values.yaml
-- [ ] T109 [P] [US6] Create values-minikube.yaml for local testing in infra/helm/todo-app/values-minikube.yaml
-- [ ] T110 [P] [US6] Create values-production.yaml for cloud deployment in infra/helm/todo-app/values-production.yaml
+- [x] T100 [US6] Create main Helm chart structure in infra/helm/todo-app/Chart.yaml
+- [x] T101 [P] [US6] Create backend deployment template in infra/helm/todo-app/templates/backend-deployment.yaml
+- [x] T102 [P] [US6] Create frontend deployment template in infra/helm/todo-app/templates/frontend-deployment.yaml
+- [x] T103 [P] [US6] Create notification service deployment template in infra/helm/todo-app/templates/notification-deployment.yaml
+- [x] T104 [P] [US6] Create recurring service deployment template in infra/helm/todo-app/templates/recurring-deployment.yaml
+- [x] T105 [P] [US6] Create audit service deployment template in infra/helm/todo-app/templates/audit-deployment.yaml
+- [x] T106 [US6] Create service templates for all deployments in infra/helm/todo-app/templates/
+- [x] T107 [US6] Create ingress template in infra/helm/todo-app/templates/ingress.yaml
+- [x] T108 [P] [US6] Create values.yaml with defaults in infra/helm/todo-app/values.yaml
+- [x] T109 [P] [US6] Create values-minikube.yaml for local testing in infra/helm/todo-app/values-minikube.yaml
+- [x] T110 [P] [US6] Create values-production.yaml for cloud deployment in infra/helm/todo-app/values-production.yaml
 
 ### Minikube Setup
 
-- [ ] T111 [US6] Create Minikube setup script in infra/minikube/setup.sh
-- [ ] T112 [US6] Document local Minikube deployment in quickstart.md
+- [x] T111 [US6] Create Minikube setup script in infra/minikube/setup.sh
+- [x] T112 [US6] Document local Minikube deployment in quickstart.md
 
 ### CI/CD Pipelines
 
-- [ ] T113 [US6] Create CI workflow for testing and linting in .github/workflows/ci.yml
-- [ ] T114 [US6] Create CD workflow for staging deployment in .github/workflows/cd-staging.yml
-- [ ] T115 [US6] Create CD workflow for production deployment with approval in .github/workflows/cd-production.yml
-- [ ] T116 [US6] Add environment secrets configuration documentation
+- [x] T113 [US6] Create CI workflow for testing and linting in .github/workflows/ci.yml
+- [x] T114 [US6] Create CD workflow for staging deployment in .github/workflows/cd-staging.yml
+- [x] T115 [US6] Create CD workflow for production deployment with approval in .github/workflows/cd-production.yml
+- [x] T116 [US6] Add environment secrets configuration documentation
 
 **Checkpoint**: User Story 6 complete - cloud deployment operational
 
@@ -259,30 +259,30 @@
 
 ### Audit Service
 
-- [ ] T117 [US7] Create audit service main entry point in backend/services/audit/main.py
-- [ ] T118 [US7] Implement Dapr subscription for task-events in backend/services/audit/main.py
-- [ ] T119 [US7] Implement audit log writer in backend/services/audit/log_writer.py
-- [ ] T120 [US7] Create audit log retention job (30-day cleanup) in backend/services/audit/retention.py
+- [x] T117 [US7] Create audit service main entry point in backend/services/audit/main.py
+- [x] T118 [US7] Implement Dapr subscription for task-events in backend/services/audit/main.py
+- [x] T119 [US7] Implement audit log writer in backend/services/audit/log_writer.py
+- [x] T120 [US7] Create audit log retention job (30-day cleanup) in backend/services/audit/retention.py
 
 ### Monitoring Stack
 
-- [ ] T121 [P] [US7] Create Prometheus Helm values for todo-app metrics in infra/helm/monitoring/prometheus-values.yaml
-- [ ] T122 [P] [US7] Create Grafana dashboard JSON for application metrics in infra/helm/monitoring/dashboards/todo-app.json
-- [ ] T123 [P] [US7] Create Loki Helm values for log aggregation in infra/helm/monitoring/loki-values.yaml
-- [ ] T124 [US7] Create Jaeger configuration for distributed tracing in infra/helm/monitoring/jaeger-values.yaml
-- [ ] T125 [US7] Configure Dapr tracing and metrics export in infra/helm/dapr-components/config.yaml
+- [x] T121 [P] [US7] Create Prometheus Helm values for todo-app metrics in infra/helm/monitoring/prometheus-values.yaml
+- [x] T122 [P] [US7] Create Grafana dashboard JSON for application metrics in infra/helm/monitoring/dashboards/todo-app.json
+- [x] T123 [P] [US7] Create Loki Helm values for log aggregation in infra/helm/monitoring/loki-values.yaml
+- [x] T124 [US7] Create Jaeger configuration for distributed tracing in infra/helm/monitoring/jaeger-values.yaml
+- [x] T125 [US7] Configure Dapr tracing and metrics export in infra/helm/dapr-components/config.yaml
 
 ### Alerting
 
-- [ ] T126 [US7] Create Prometheus alerting rules for critical conditions in infra/helm/monitoring/alerts.yaml
-- [ ] T127 [US7] Create runbook documentation for common alerts in docs/runbooks/
+- [x] T126 [US7] Create Prometheus alerting rules for critical conditions in infra/helm/monitoring/alerts.yaml
+- [x] T127 [US7] Create runbook documentation for common alerts in docs/runbooks/
 
 ### Notification Preferences API
 
-- [ ] T128 [US7] Create notification preferences endpoints (GET/PUT) in backend/app/api/notifications.py
-- [ ] T129 [US7] Create notification history endpoint in backend/app/api/notifications.py
-- [ ] T130 [US7] Create test notification endpoint in backend/app/api/notifications.py
-- [ ] T131 [US7] Create notification preferences page in frontend/src/app/settings/notifications/page.tsx
+- [x] T128 [US7] Create notification preferences endpoints (GET/PUT) in backend/app/api/notifications.py
+- [x] T129 [US7] Create notification history endpoint in backend/app/api/notifications.py
+- [x] T130 [US7] Create test notification endpoint in backend/app/api/notifications.py
+- [x] T131 [US7] Create notification preferences page in frontend/src/app/settings/notifications/page.tsx
 
 **Checkpoint**: User Story 7 complete - full observability operational
 
@@ -292,14 +292,14 @@
 
 **Purpose**: Final improvements affecting multiple user stories
 
-- [ ] T132 [P] Add API error handling middleware for consistent error responses in backend/app/middleware/error_handler.py
-- [ ] T133 [P] Add request correlation ID middleware for tracing in backend/app/middleware/correlation.py
-- [ ] T134 [P] Add structured logging configuration in backend/app/core/logging.py
-- [ ] T135 [P] Create API documentation with OpenAPI descriptions in backend/app/main.py
-- [ ] T136 Validate quickstart.md end-to-end flow
-- [ ] T137 Create cloud provider setup documentation (DOKS, GKE, AKS) in infra/cloud/
-- [ ] T138 Security review: validate no secrets in code, proper CORS, rate limiting
-- [ ] T139 Performance validation: run k6 load tests per NFR requirements
+- [x] T132 [P] Add API error handling middleware for consistent error responses in backend/app/middleware/error_handler.py
+- [x] T133 [P] Add request correlation ID middleware for tracing in backend/app/middleware/correlation.py
+- [x] T134 [P] Add structured logging configuration in backend/app/core/logging.py
+- [x] T135 [P] Create API documentation with OpenAPI descriptions in backend/app/main.py
+- [x] T136 Validate quickstart.md end-to-end flow
+- [x] T137 Create cloud provider setup documentation (DOKS, GKE, AKS) in infra/cloud/
+- [X] T138 Security review: validate no secrets in code, proper CORS, rate limiting
+- [X] T139 Performance validation: run k6 load tests per NFR requirements
 
 ---
 

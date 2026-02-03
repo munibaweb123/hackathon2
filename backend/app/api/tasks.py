@@ -4,10 +4,13 @@ from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from sqlmodel import Session, select, col
+from sqlalchemy import and_
 
 from ..core.database import get_session
 from ..core.auth import get_current_user, AuthenticatedUser, verify_user_access
 from ..models.task import Task, Priority
+from ..models.tag import Tag
+from ..models.task_tag import TaskTag
 from ..schemas.task import RecurrencePattern
 from ..schemas.task import TaskCreate, TaskUpdate, TaskResponse, TaskListResponse
 from ..utils.recurrence import generate_recurring_tasks
@@ -56,6 +59,10 @@ async def _schedule_reminder_event(
 @router.get("/tasks", response_model=TaskListResponse)
 async def list_tasks(
     status_filter: Optional[str] = Query(None, alias="status"),
+    priority_filter: Optional[str] = Query(None, alias="priority"),
+    tags_filter: Optional[str] = Query(None, alias="tags"),
+    due_before: Optional[str] = Query(None, alias="due_before"),
+    due_after: Optional[str] = Query(None, alias="due_after"),
     sort_by: str = Query("created_at", alias="sort"),
     order: str = Query("desc"),
     page: int = Query(1, ge=1),
@@ -68,6 +75,10 @@ async def list_tasks(
     List all tasks for the authenticated user with optional filtering and sorting.
 
     - **status**: Filter by 'completed' or 'pending'
+    - **priority**: Filter by 'high', 'medium', 'low', 'none'
+    - **tags**: Filter by tag names (comma separated)
+    - **due_before**: Filter tasks with due date before this date (ISO format)
+    - **due_after**: Filter tasks with due date after this date (ISO format)
     - **sort**: Sort by 'created_at', 'due_date', 'priority', or 'title'
     - **order**: 'asc' or 'desc'
     - **page**: Page number (default: 1)
@@ -90,6 +101,39 @@ async def list_tasks(
     elif status_filter == "pending":
         statement = statement.where(Task.completed == False)
 
+    # Apply priority filter
+    if priority_filter:
+        statement = statement.where(Task.priority == Priority[priority_filter])
+
+    # Apply due date filters
+    if due_before:
+        from datetime import datetime
+        due_before_dt = datetime.fromisoformat(due_before.replace('Z', '+00:00'))
+        statement = statement.where(Task.due_date <= due_before_dt)
+
+    if due_after:
+        from datetime import datetime
+        due_after_dt = datetime.fromisoformat(due_after.replace('Z', '+00:00'))
+        statement = statement.where(Task.due_date >= due_after_dt)
+
+    # Apply tags filter - split comma-separated tags and filter by them
+    if tags_filter:
+        # Split the tags_filter by comma and get individual tag names
+        tag_names = [tag.strip() for tag in tags_filter.split(",") if tag.strip()]
+
+        if tag_names:
+            # Get tag IDs for the specified tag names
+            tag_ids_stmt = select(Tag.id).where(
+                and_(Tag.user_id == current_user.id, Tag.name.in_(tag_names))
+            )
+            tag_ids_result = session.exec(tag_ids_stmt).all()
+
+            if tag_ids_result:
+                # Filter tasks that have any of these tags
+                statement = statement.join(TaskTag).join(Tag).where(
+                    Tag.id.in_(tag_ids_result)
+                )
+
     # Get total count before pagination
     count_statement = select(Task).where(Task.user_id == current_user.id)
     if include_recurring:
@@ -101,6 +145,37 @@ async def list_tasks(
         count_statement = count_statement.where(Task.completed == True)
     elif status_filter == "pending":
         count_statement = count_statement.where(Task.completed == False)
+
+    # Apply priority filter to count statement
+    if priority_filter:
+        count_statement = count_statement.where(Task.priority == Priority[priority_filter])
+
+    # Apply due date filters to count statement
+    if due_before:
+        due_before_dt = datetime.fromisoformat(due_before.replace('Z', '+00:00'))
+        count_statement = count_statement.where(Task.due_date <= due_before_dt)
+
+    if due_after:
+        due_after_dt = datetime.fromisoformat(due_after.replace('Z', '+00:00'))
+        count_statement = count_statement.where(Task.due_date >= due_after_dt)
+
+    # Apply tags filter to count statement
+    if tags_filter:
+        # Split the tags_filter by comma and get individual tag names
+        tag_names = [tag.strip() for tag in tags_filter.split(",") if tag.strip()]
+
+        if tag_names:
+            # Get tag IDs for the specified tag names
+            tag_ids_stmt = select(Tag.id).where(
+                and_(Tag.user_id == current_user.id, Tag.name.in_(tag_names))
+            )
+            tag_ids_result = session.exec(tag_ids_stmt).all()
+
+            if tag_ids_result:
+                # Filter tasks that have any of these tags
+                count_statement = count_statement.join(TaskTag).join(Tag).where(
+                    Tag.id.in_(tag_ids_result)
+                )
 
     total = len(session.exec(count_statement).all())
 

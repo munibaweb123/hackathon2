@@ -1,5 +1,5 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
-import { Task, CreateTaskInput, UpdateTaskInput, TaskFilters, ApiError, Reminder, ReminderType, ReminderStatus, UserPreference } from '@/types';
+import { Task, CreateTaskInput, UpdateTaskInput, TaskFilters, ApiError, Reminder, ReminderType, ReminderStatus, UserPreference, Tag } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -121,6 +121,18 @@ class ApiClient {
     if (filters?.status && filters.status !== 'all') {
       params.append('status', filters.status);
     }
+    if (filters?.priority) {
+      params.append('priority', filters.priority);
+    }
+    if (filters?.searchQuery) {
+      params.append('q', filters.searchQuery);
+    }
+    if (filters?.dueBefore) {
+      params.append('due_before', filters.dueBefore);
+    }
+    if (filters?.dueAfter) {
+      params.append('due_after', filters.dueAfter);
+    }
     if (filters?.sortBy) {
       params.append('sort', filters.sortBy);
     }
@@ -213,6 +225,73 @@ class ApiClient {
 
   async patchUserPreferences(input: Partial<UserPreference>): Promise<UserPreference> {
     const response = await this.client.patch<UserPreference>(`/api/preferences`, input);
+    return response.data;
+  }
+
+  // Tag API methods
+  async getTags(): Promise<Tag[]> {
+    const response = await this.client.get<Tag[]>(`/api/tags`);
+    return response.data;
+  }
+
+  async getTag(tagId: string): Promise<Tag> {
+    const response = await this.client.get<Tag>(`/api/tags/${tagId}`);
+    return response.data;
+  }
+
+  async createTag(input: { name: string; color?: string }): Promise<Tag> {
+    const response = await this.client.post<Tag>(`/api/tags`, input);
+    return response.data;
+  }
+
+  async updateTag(tagId: string, input: { name?: string; color?: string }): Promise<Tag> {
+    const response = await this.client.put<Tag>(`/api/tags/${tagId}`, input);
+    return response.data;
+  }
+
+  async deleteTag(tagId: string): Promise<void> {
+    await this.client.delete(`/api/tags/${tagId}`);
+  }
+
+  async addTagToTask(taskId: number, tagId: string): Promise<void> {
+    await this.client.post(`/api/tasks/${taskId}/tags/${tagId}`);
+  }
+
+  async removeTagFromTask(taskId: number, tagId: string): Promise<void> {
+    await this.client.delete(`/api/tasks/${taskId}/tags/${tagId}`);
+  }
+
+  // Notification Preference API methods
+  async getNotificationPreferences(): Promise<{
+    in_app_enabled: boolean;
+    email_enabled: boolean;
+    reminder_lead_time: number;
+    quiet_hours_start: string | null;
+    quiet_hours_end: string | null;
+  }> {
+    const response = await this.client.get(`/notifications/preferences`);
+    return response.data;
+  }
+
+  async updateNotificationPreferences(input: {
+    in_app_enabled?: boolean;
+    email_enabled?: boolean;
+    reminder_lead_time?: number;
+    quiet_hours_start?: string | null;
+    quiet_hours_end?: string | null;
+  }): Promise<{
+    in_app_enabled: boolean;
+    email_enabled: boolean;
+    reminder_lead_time: number;
+    quiet_hours_start: string | null;
+    quiet_hours_end: string | null;
+  }> {
+    const response = await this.client.put(`/notifications/preferences`, input);
+    return response.data;
+  }
+
+  async sendTestNotification(): Promise<{ status: string; message: string }> {
+    const response = await this.client.post(`/notifications/test`);
     return response.data;
   }
 }

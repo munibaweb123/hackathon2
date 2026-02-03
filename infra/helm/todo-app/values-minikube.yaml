@@ -1,0 +1,83 @@
+replicaCount:
+  backend: 1
+  frontend: 1
+  notification: 1
+  recurring: 1
+  audit: 1
+
+images:
+  backend:
+    repository: todo-backend
+    tag: latest
+    pullPolicy: Never
+  frontend:
+    repository: todo-frontend
+    tag: latest
+    pullPolicy: Never
+  notification:
+    repository: todo-notification
+    tag: latest
+    pullPolicy: Never
+  recurring:
+    repository: todo-recurring
+    tag: latest
+    pullPolicy: Never
+  audit:
+    repository: todo-audit
+    tag: latest
+    pullPolicy: Never
+
+backend:
+  corsOrigins: "*"
+
+frontend:
+  apiUrl: "http://todo.local/api"
+  wsUrl: "ws://todo.local/ws"
+
+service:
+  frontend:
+    type: NodePort
+
+ingress:
+  enabled: true
+  className: nginx
+  host: "todo.local"
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+
+resources:
+  backend:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  frontend:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  notification:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  recurring:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  audit:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi

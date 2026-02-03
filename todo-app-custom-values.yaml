@@ -1,0 +1,42 @@
+# Disable PostgreSQL subchart since we deployed it separately
+postgresql:
+  enabled: false
+
+# Use external PostgreSQL
+backend:
+  env:
+    - name: DATABASE_URL
+      value: "postgresql://postgres:postgres123@postgres.postgres.svc.cluster.local:5432/todo_db"
+  image:
+    repository: todo-backend
+    tag: latest
+    pullPolicy: Never  # Use local images in Minikube
+
+frontend:
+  image:
+    repository: todo-frontend
+    tag: latest
+    pullPolicy: Never  # Use local images in Minikube
+
+notification:
+  image:
+    repository: todo-notification
+    tag: latest
+    pullPolicy: Never  # Use local images in Minikube
+
+recurring:
+  image:
+    repository: todo-recurring
+    tag: latest
+    pullPolicy: Never  # Use local images in Minikube
+
+audit:
+  image:
+    repository: todo-audit
+    tag: latest
+    pullPolicy: Never  # Use local images in Minikube
+
+# Kafka configuration for Dapr
+global:
+  kafka:
+    brokers: "my-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092"

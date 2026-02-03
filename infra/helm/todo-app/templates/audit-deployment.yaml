@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-audit
+  labels:
+    {{- include "todo-app.labels" . | nindent 4 }}
+    app: audit
+  annotations:
+    dapr.io/enabled: "true"
+    dapr.io/app-id: "audit"
+    dapr.io/app-port: "8003"
+spec:
+  replicas: {{ .Values.replicaCount.audit }}
+  selector:
+    matchLabels:
+      app: audit
+      {{- include "todo-app.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app: audit
+        {{- include "todo-app.selectorLabels" . | nindent 8 }}
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "audit"
+        dapr.io/app-port: "8003"
+    spec:
+      containers:
+        - name: audit
+          image: "{{ .Values.images.audit.repository }}:{{ .Values.images.audit.tag }}"
+          imagePullPolicy: {{ .Values.images.audit.pullPolicy }}
+          ports:
+            - containerPort: 8003
+              protocol: TCP
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: database-url
+            - name: DAPR_HTTP_PORT
+              value: "3500"
+          resources:
+            {{- toYaml .Values.resources.audit | nindent 12 }}

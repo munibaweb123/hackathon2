@@ -10,8 +10,14 @@ import logging
 from .core.config import settings
 from .core.database import create_db_and_tables
 from .core import jwks as jwks_module
-from .api import tasks, reminders, preferences, health, auth, auth_public, auth_routes, auth_bridge, notifications, chat
+from .core.logging import setup_logging
+from .api import tasks, reminders, preferences, health, auth, auth_public, auth_routes, auth_bridge, notifications, chat, websocket, tags
+from .middleware.correlation import CorrelationIdMiddleware
+from .middleware.error_handler import ErrorHandlerMiddleware
 from .utils.reminder_scheduler import start_scheduler
+
+# Initialize structured logging
+setup_logging()
 
 # Initialize rate limiter for the entire application
 limiter = Limiter(key_func=get_remote_address)
@@ -58,8 +64,24 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="Todo Web Application API with Better Auth cookie-based authentication",
+    description=(
+        "Todo Web Application API with event-driven microservices architecture. "
+        "Features: task CRUD, recurring tasks, due dates & reminders, priorities, "
+        "tags, full-text search, real-time sync via WebSocket, and notification preferences. "
+        "Authentication via Better Auth (cookie-based JWT)."
+    ),
     lifespan=lifespan,
+    openapi_tags=[
+        {"name": "Health", "description": "Health check endpoints"},
+        {"name": "Tasks", "description": "Task CRUD with priorities, due dates, recurrence, and tags"},
+        {"name": "Tags", "description": "Tag management for task organization"},
+        {"name": "Reminders", "description": "Task reminder scheduling"},
+        {"name": "Notifications", "description": "Notification preferences and WebSocket delivery"},
+        {"name": "Preferences", "description": "User preference management"},
+        {"name": "Authentication", "description": "Better Auth integration"},
+        {"name": "Chat", "description": "AI chatbot interface"},
+        {"name": "WebSocket", "description": "Real-time sync via WebSocket"},
+    ],
 )
 
 
@@ -80,6 +102,10 @@ async def startup_event():
 app.state.limiter = limiter
 app.add_exception_handler(429, _rate_limit_exceeded_handler)
 
+# Add error handling and correlation ID middleware
+app.add_middleware(ErrorHandlerMiddleware)
+app.add_middleware(CorrelationIdMiddleware)
+
 # Configure CORS for Next.js frontend
 app.add_middleware(
     CORSMiddleware,
@@ -94,12 +120,14 @@ app.include_router(health.router, tags=["Health"])
 app.include_router(tasks.router, prefix=settings.API_PREFIX, tags=["Tasks"])
 app.include_router(reminders.router, prefix=settings.API_PREFIX, tags=["Reminders"])
 app.include_router(preferences.router, prefix=settings.API_PREFIX, tags=["Preferences"])
+app.include_router(tags.router, prefix=settings.API_PREFIX, tags=["Tags"])
 app.include_router(auth_public.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(auth_routes.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(auth_bridge.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(notifications.router, tags=["Notifications"])
 app.include_router(chat.router, prefix="/api", tags=["Chat"])
+app.include_router(websocket.router, prefix="", tags=["WebSocket"])
 
 # Include user profile router
 from .api.users import profile

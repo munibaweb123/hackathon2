@@ -1,0 +1,42 @@
+name: CD - Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag to deploy (commit SHA)"
+        required: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
+
+jobs:
+  deploy-production:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://todo.example.com
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-kubectl@v3
+      - uses: azure/setup-helm@v4
+      - run: |
+          echo "${{ secrets.KUBE_CONFIG_PRODUCTION }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+          helm upgrade --install todo-app infra/helm/todo-app \
+            --namespace todo-app \
+            --create-namespace \
+            -f infra/helm/todo-app/values-production.yaml \
+            --set images.backend.tag=${{ inputs.tag }} \
+            --set images.frontend.tag=${{ inputs.tag }} \
+            --set images.notification.tag=${{ inputs.tag }} \
+            --set images.recurring.tag=${{ inputs.tag }} \
+            --set images.audit.tag=${{ inputs.tag }} \
+            --wait --timeout 300s
+          rm kubeconfig
+      - name: Verify deployment
+        run: |
+          export KUBECONFIG=kubeconfig || true
+          kubectl get pods -n todo-app
+          kubectl rollout status deployment/todo-app-backend -n todo-app --timeout=120s

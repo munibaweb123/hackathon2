@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-recurring
+  labels:
+    {{- include "todo-app.labels" . | nindent 4 }}
+    app: recurring
+  annotations:
+    dapr.io/enabled: "true"
+    dapr.io/app-id: "recurring"
+    dapr.io/app-port: "8002"
+spec:
+  replicas: {{ .Values.replicaCount.recurring }}
+  selector:
+    matchLabels:
+      app: recurring
+      {{- include "todo-app.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app: recurring
+        {{- include "todo-app.selectorLabels" . | nindent 8 }}
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "recurring"
+        dapr.io/app-port: "8002"
+    spec:
+      containers:
+        - name: recurring
+          image: "{{ .Values.images.recurring.repository }}:{{ .Values.images.recurring.tag }}"
+          imagePullPolicy: {{ .Values.images.recurring.pullPolicy }}
+          ports:
+            - containerPort: 8002
+              protocol: TCP
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: database-url
+            - name: DAPR_HTTP_PORT
+              value: "3500"
+          resources:
+            {{- toYaml .Values.resources.recurring | nindent 12 }}

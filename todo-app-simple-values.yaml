@@ -1,0 +1,37 @@
+# Simple values for initial deployment without complex dependencies
+postgresql:
+  enabled: false
+
+# Use external PostgreSQL
+backend:
+  env:
+    - name: DATABASE_URL
+      value: "postgresql://postgres:postgres123@postgres.postgres.svc.cluster.local:5432/todo_db"
+    - name: REDIS_URL
+      value: "redis://redis.redis.svc.cluster.local:6379"
+  image:
+    repository: todo-backend
+    tag: latest
+    pullPolicy: Never  # Use local images in Minikube
+
+frontend:
+  image:
+    repository: todo-frontend
+    tag: latest
+    pullPolicy: Never  # Use local images in Minikube
+  service:
+    type: NodePort  # Make it accessible from outside
+
+notification:
+  enabled: false  # Disable for now to simplify deployment
+
+recurring:
+  enabled: false  # Disable for now to simplify deployment
+
+audit:
+  enabled: false  # Disable for now to simplify deployment
+
+# Simplified Kafka configuration
+global:
+  kafka:
+    brokers: "my-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092"

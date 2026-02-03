@@ -1,0 +1,245 @@
+# GKE-specific values for Todo App deployment
+# Usage: helm upgrade --install todo-app ./infra/helm/todo-app -f ./infra/helm/todo-app/values-gke.yaml
+
+# Replica configuration for GKE
+replicaCount:
+  backend: 2
+  frontend: 2
+  notification: 1
+  recurring: 1
+  audit: 1
+
+# Container images from Google Artifact Registry
+# Replace YOUR_PROJECT_ID and YOUR_REGION with actual values
+images:
+  backend:
+    repository: YOUR_REGION-docker.pkg.dev/YOUR_PROJECT_ID/todo-app/backend
+    tag: latest
+    pullPolicy: Always
+  frontend:
+    repository: YOUR_REGION-docker.pkg.dev/YOUR_PROJECT_ID/todo-app/frontend
+    tag: latest
+    pullPolicy: Always
+  notification:
+    repository: YOUR_REGION-docker.pkg.dev/YOUR_PROJECT_ID/todo-app/notification
+    tag: latest
+    pullPolicy: Always
+  recurring:
+    repository: YOUR_REGION-docker.pkg.dev/YOUR_PROJECT_ID/todo-app/recurring
+    tag: latest
+    pullPolicy: Always
+  audit:
+    repository: YOUR_REGION-docker.pkg.dev/YOUR_PROJECT_ID/todo-app/audit
+    tag: latest
+    pullPolicy: Always
+
+# Backend configuration
+backend:
+  corsOrigins: "https://todo.YOUR_DOMAIN.com"
+  env:
+    - name: DATABASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: db-credentials
+          key: connection-string
+    - name: BETTER_AUTH_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: app-secrets
+          key: better-auth-secret
+    - name: BETTER_AUTH_URL
+      value: "https://todo.YOUR_DOMAIN.com"
+    - name: OPENAI_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: app-secrets
+          key: openai-api-key
+          optional: true
+
+# Frontend configuration
+frontend:
+  apiUrl: "https://todo.YOUR_DOMAIN.com/api"
+  wsUrl: "wss://todo.YOUR_DOMAIN.com/ws"
+  env:
+    - name: NEXT_PUBLIC_API_URL
+      value: "https://todo.YOUR_DOMAIN.com/api"
+    - name: NEXT_PUBLIC_WS_URL
+      value: "wss://todo.YOUR_DOMAIN.com/ws"
+    - name: DATABASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: db-credentials
+          key: connection-string
+    - name: BETTER_AUTH_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: app-secrets
+          key: better-auth-secret
+    - name: BETTER_AUTH_URL
+      value: "https://todo.YOUR_DOMAIN.com"
+
+# Service configuration
+service:
+  backend:
+    type: ClusterIP
+    port: 8000
+  frontend:
+    type: ClusterIP
+    port: 3000
+  notification:
+    type: ClusterIP
+    port: 8001
+  recurring:
+    type: ClusterIP
+    port: 8002
+  audit:
+    type: ClusterIP
+    port: 8003
+
+# GKE Ingress configuration
+ingress:
+  enabled: true
+  className: gce
+  host: "todo.YOUR_DOMAIN.com"
+  annotations:
+    # Static IP reservation (create with: gcloud compute addresses create todo-app-ip --global)
+    kubernetes.io/ingress.global-static-ip-name: "todo-app-ip"
+    # Google-managed SSL certificate
+    networking.gke.io/managed-certificates: "todo-app-cert"
+    # Enable Cloud CDN for static assets
+    cloud.google.com/backend-config: '{"default": "todo-backend-config"}'
+  tls:
+    enabled: true
+    secretName: ""  # Not needed with managed certificates
+
+# Resource limits for GKE (optimized for e2-medium nodes)
+resources:
+  backend:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  frontend:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+  notification:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  recurring:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+  audit:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# Horizontal Pod Autoscaler configuration
+autoscaling:
+  enabled: true
+  backend:
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  frontend:
+    minReplicas: 2
+    maxReplicas: 5
+    targetCPUUtilizationPercentage: 70
+
+# Pod Disruption Budget for high availability
+podDisruptionBudget:
+  enabled: true
+  backend:
+    minAvailable: 1
+  frontend:
+    minAvailable: 1
+
+# Node affinity for GKE (optional - for specific node pools)
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Disable built-in PostgreSQL (using Cloud SQL)
+postgresql:
+  enabled: false
+
+# Cloud SQL Proxy sidecar configuration
+cloudSqlProxy:
+  enabled: true
+  instanceConnectionName: "YOUR_PROJECT_ID:YOUR_REGION:todo-postgres"
+  port: 5432
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# Service Account for Workload Identity
+serviceAccount:
+  create: true
+  name: todo-app-sa
+  annotations:
+    iam.gke.io/gcp-service-account: todo-app-sa@YOUR_PROJECT_ID.iam.gserviceaccount.com
+
+# Dapr configuration (optional - for event-driven features)
+dapr:
+  enabled: false  # Set to true if using Dapr on GKE
+
+# Health check configuration
+healthChecks:
+  backend:
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8000
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 8000
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 3
+  frontend:
+    livenessProbe:
+      httpGet:
+        path: /
+        port: 3000
+      initialDelaySeconds: 30
+      periodSeconds: 10
+    readinessProbe:
+      httpGet:
+        path: /api/health/live
+        port: 3000
+      initialDelaySeconds: 10
+      periodSeconds: 5
+
+# Network Policy for security
+networkPolicy:
+  enabled: true
+  allowIngressFromNamespaces:
+    - ingress-nginx
+    - gke-system

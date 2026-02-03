@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,10 +8,15 @@ import { TaskList } from '@/components/tasks/task-list';
 import { TaskForm } from '@/components/tasks/task-form';
 import { TaskFilters } from '@/components/tasks/task-filters';
 import { ReminderForm } from '@/components/reminders/reminder-form';
+import { SearchBar } from '@/components/tasks/SearchBar';
+import { DateRangeFilter } from '@/components/tasks/DateRangeFilter';
+import { ConnectionStatusBadge } from '@/components/layout/ConnectionStatus';
 import { useAuth } from '@/hooks/use-auth';
 import { useTasks } from '@/hooks/use-tasks';
+import { useRealtimeSync, TaskUpdateEvent } from '@/hooks/use-realtime-sync';
 import { jwtApiClient } from '@/services/auth/api-client';
-import type { Task, CreateTaskInput, UpdateTaskInput, Reminder } from '@/types';
+import { apiClient } from '@/lib/api-client';
+import type { Task, CreateTaskInput, UpdateTaskInput, Reminder, Tag, TaskFilters as TaskFiltersType } from '@/types';
 
 export default function TasksPage() {
   const { user } = useAuth();
@@ -36,6 +41,86 @@ export default function TasksPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showReminderForm, setShowReminderForm] = useState(false);
   const [selectedTaskForReminder, setSelectedTaskForReminder] = useState<Task | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dueBefore, setDueBefore] = useState<Date | undefined>(undefined);
+  const [dueAfter, setDueAfter] = useState<Date | undefined>(undefined);
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+
+  // Real-time sync handlers
+  const handleTaskCreated = useCallback((event: TaskUpdateEvent) => {
+    toast.info(`New task added: ${event.task_id}`);
+    fetchTasks(); // Refetch to get the new task
+  }, [fetchTasks]);
+
+  const handleTaskUpdated = useCallback((event: TaskUpdateEvent) => {
+    toast.info(`Task updated: ${event.task_id}`);
+    fetchTasks(); // Refetch to get updated data
+  }, [fetchTasks]);
+
+  const handleTaskDeleted = useCallback((event: TaskUpdateEvent) => {
+    toast.info(`Task deleted: ${event.task_id}`);
+    fetchTasks(); // Refetch to remove deleted task
+  }, [fetchTasks]);
+
+  const handleTaskCompleted = useCallback((event: TaskUpdateEvent) => {
+    toast.success(`Task completed: ${event.task_id}`);
+    fetchTasks(); // Refetch to update status
+  }, [fetchTasks]);
+
+  // Set up real-time sync
+  const { isConnected } = useRealtimeSync({
+    onTaskCreated: handleTaskCreated,
+    onTaskUpdated: handleTaskUpdated,
+    onTaskDeleted: handleTaskDeleted,
+    onTaskCompleted: handleTaskCompleted,
+    autoConnect: true,
+  });
+
+  // Fetch tags on component mount
+  useEffect(() => {
+    const fetchTags = async () => {
+      try {
+        const tags = await apiClient.getTags();
+        setAllTags(tags);
+      } catch (err) {
+        console.error('Failed to fetch tags:', err);
+        // Don't show error toast - tags are optional
+      }
+    };
+
+    fetchTags();
+  }, []);
+
+  // Enhanced updateFilters to handle search and date range
+  const handleUpdateFilters = (newFilters: Partial<TaskFiltersType>) => {
+    // Update search and date range filters separately
+    if (newFilters.searchQuery !== undefined) {
+      setSearchQuery(newFilters.searchQuery);
+    }
+    if (newFilters.dueBefore !== undefined) {
+      setDueBefore(newFilters.dueBefore ? new Date(newFilters.dueBefore) : undefined);
+    }
+    if (newFilters.dueAfter !== undefined) {
+      setDueAfter(newFilters.dueAfter ? new Date(newFilters.dueAfter) : undefined);
+    }
+
+    // Update the main filters
+    updateFilters(newFilters);
+  };
+
+  const handleSearchChange = useCallback((query: string) => {
+    updateFilters({ searchQuery: query });
+  }, [updateFilters]);
+
+  const handleDueBeforeChange = useCallback((date: Date | undefined) => {
+    setDueBefore(date);
+    updateFilters({ dueBefore: date ? date.toISOString() : undefined });
+  }, [updateFilters]);
+
+  const handleDueAfterChange = useCallback((date: Date | undefined) => {
+    setDueAfter(date);
+    updateFilters({ dueAfter: date ? date.toISOString() : undefined });
+  }, [updateFilters]);
 
   const handleCreateTask = async (data: CreateTaskInput) => {
     setIsSubmitting(true);
@@ -112,6 +197,9 @@ export default function TasksPage() {
 
   return (
     <div className="space-y-6">
+      {/* Connection Status Badge */}
+      <ConnectionStatusBadge />
+
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
@@ -134,9 +222,30 @@ export default function TasksPage() {
         </Card>
       </div>
 
-      {/* Actions Row */}
-      <div className="flex flex-col sm:flex-row justify-between gap-4">
-        <TaskFilters filters={filters} onFilterChange={updateFilters} />
+      {/* Filters Row */}
+      <div className="flex flex-col lg:flex-row gap-4 justify-between">
+        <div className="flex flex-col gap-4 w-full lg:w-auto">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <TaskFilters filters={filters} onFilterChange={updateFilters} />
+          </div>
+
+          {/* Search and Date Range */}
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="flex-1 max-w-md">
+              <SearchBar
+                value={filters.searchQuery || ''}
+                onChange={handleSearchChange}
+                placeholder="Search tasks..."
+              />
+            </div>
+            <DateRangeFilter
+              startDate={dueAfter}
+              endDate={dueBefore}
+              onStartDateChange={handleDueAfterChange}
+              onEndDateChange={handleDueBeforeChange}
+            />
+          </div>
+        </div>
         <Button onClick={() => setIsFormOpen(true)}>
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -191,7 +300,7 @@ export default function TasksPage() {
       <TaskForm
         open={isFormOpen}
         onOpenChange={setIsFormOpen}
-        allTags={[]}
+        allTags={allTags}
         onSubmit={handleCreateTask}
         isLoading={isSubmitting}
       />
@@ -201,7 +310,7 @@ export default function TasksPage() {
         open={!!editingTask}
         onOpenChange={(open) => !open && setEditingTask(null)}
         task={editingTask}
-        allTags={[]}
+        allTags={allTags}
         onSubmit={handleUpdateTask}
         isLoading={isSubmitting}
       />

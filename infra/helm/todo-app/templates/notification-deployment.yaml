@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-notification
+  labels:
+    {{- include "todo-app.labels" . | nindent 4 }}
+    app: notification
+  annotations:
+    dapr.io/enabled: "true"
+    dapr.io/app-id: "notification"
+    dapr.io/app-port: "8001"
+spec:
+  replicas: {{ .Values.replicaCount.notification }}
+  selector:
+    matchLabels:
+      app: notification
+      {{- include "todo-app.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        app: notification
+        {{- include "todo-app.selectorLabels" . | nindent 8 }}
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "notification"
+        dapr.io/app-port: "8001"
+    spec:
+      containers:
+        - name: notification
+          image: "{{ .Values.images.notification.repository }}:{{ .Values.images.notification.tag }}"
+          imagePullPolicy: {{ .Values.images.notification.pullPolicy }}
+          ports:
+            - containerPort: 8001
+              protocol: TCP
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: database-url
+            - name: RESEND_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-secrets
+                  key: resend-api-key
+            - name: DAPR_HTTP_PORT
+              value: "3500"
+          resources:
+            {{- toYaml .Values.resources.notification | nindent 12 }}

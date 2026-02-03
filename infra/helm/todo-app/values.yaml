@@ -1,0 +1,91 @@
+replicaCount:
+  backend: 1
+  frontend: 1
+  notification: 1
+  recurring: 1
+  audit: 1
+
+images:
+  backend:
+    repository: todo-backend
+    tag: latest
+    pullPolicy: IfNotPresent
+  frontend:
+    repository: todo-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  notification:
+    repository: todo-notification
+    tag: latest
+    pullPolicy: IfNotPresent
+  recurring:
+    repository: todo-recurring
+    tag: latest
+    pullPolicy: IfNotPresent
+  audit:
+    repository: todo-audit
+    tag: latest
+    pullPolicy: IfNotPresent
+
+backend:
+  corsOrigins: "http://localhost:3000"
+
+frontend:
+  apiUrl: "http://localhost:8000"
+  wsUrl: "ws://localhost:8000/ws"
+
+service:
+  frontend:
+    type: ClusterIP
+
+ingress:
+  enabled: false
+  className: ""
+  host: "todo.local"
+  annotations: {}
+  tls: []
+
+resources:
+  backend:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  frontend:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  notification:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 150m
+      memory: 128Mi
+  recurring:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 150m
+      memory: 128Mi
+  audit:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 150m
+      memory: 128Mi
+
+secrets:
+  databaseUrl: "postgresql://user:password@localhost/todo"
+  betterAuthSecret: "change-me"
+  resendApiKey: "re_xxxxx"
+
+postgresql:
+  enabled: false
