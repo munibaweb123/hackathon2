@@ -10,12 +10,20 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
+  {
+    ignores: [
+      "node_modules/**",
+      ".next/**",
+      "out/**",
+      "**/*.config.*",
+      "**/*.d.ts",
+    ],
+  },
   ...compat.extends("next/core-web-vitals"),
   {
+    files: ["**/*.ts", "**/*.tsx"],
     rules: {
-      // Allow unused variables prefixed with underscore
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
-      // Allow any type in development (can be made stricter later)
       "@typescript-eslint/no-explicit-any": "warn",
     },
   },

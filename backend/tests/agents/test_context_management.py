@@ -2,8 +2,8 @@
 
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
-from app.agents.todo_agent import run_chatbot_agent
-from app.services.context_service import ContextTrackingService
+from app.agents import run_chatbot_agent
+from app.agents.services.context_service import ContextTrackingService
 
 
 @pytest.mark.asyncio
@@ -14,7 +14,7 @@ async def test_contextual_command_update_task():
     conversation_id = "test_conv_456"
 
     # Mock the OpenAI client response
-    with patch('app.agents.factory.create_model') as mock_client:
+    with patch('app.agents.core.factory.create_model') as mock_client:
         # Mock a response that would call update_task with the referenced task ID
         mock_response = AsyncMock()
         mock_response.choices = [AsyncMock()]
@@ -51,7 +51,7 @@ async def test_follow_up_questions():
     conversation_id = "test_conv_789"
 
     # Mock the OpenAI client response
-    with patch('app.agents.factory.create_model') as mock_client:
+    with patch('app.agents.core.factory.create_model') as mock_client:
         mock_response = AsyncMock()
         mock_response.choices = [AsyncMock()]
         mock_response.choices[0].message = AsyncMock()
@@ -79,7 +79,7 @@ async def test_context_window_management():
         user_text = f"This is message #{i+1} in the conversation."
 
         # Mock the OpenAI client response
-        with patch('app.agents.factory.create_model') as mock_client:
+        with patch('app.agents.core.factory.create_model') as mock_client:
             mock_response = AsyncMock()
             mock_response.choices = [AsyncMock()]
             mock_response.choices[0].message = AsyncMock()
@@ -103,7 +103,7 @@ async def test_context_persistence():
     conversation_id = "test_conv_persist"
 
     # Mock the OpenAI client response
-    with patch('app.agents.factory.create_model') as mock_client:
+    with patch('app.agents.core.factory.create_model') as mock_client:
         # Mock a response that would call list_tasks to retrieve previous context
         mock_response = AsyncMock()
         mock_response.choices = [AsyncMock()]

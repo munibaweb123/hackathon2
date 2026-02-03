@@ -2,7 +2,7 @@
 
 import pytest
 from unittest.mock import AsyncMock, patch
-from app.agents.todo_agent import run_chatbot_agent
+from app.agents import run_chatbot_agent
 
 
 @pytest.mark.asyncio
@@ -12,7 +12,7 @@ async def test_add_task_command():
     user_id = "test_user_123"
 
     # Mock the OpenAI client response
-    with patch('app.agents.factory.create_model') as mock_client:
+    with patch('app.agents.core.factory.create_model') as mock_client:
         mock_response = AsyncMock()
         mock_response.choices = [AsyncMock()]
         mock_response.choices[0].message = AsyncMock()
@@ -36,7 +36,7 @@ async def test_show_all_tasks_command():
     user_id = "test_user_123"
 
     # Mock the OpenAI client response
-    with patch('app.agents.factory.create_model') as mock_client:
+    with patch('app.agents.core.factory.create_model') as mock_client:
         mock_response = AsyncMock()
         mock_response.choices = [AsyncMock()]
         mock_response.choices[0].message = AsyncMock()
@@ -59,7 +59,7 @@ async def test_pending_tasks_command():
     user_id = "test_user_123"
 
     # Mock the OpenAI client response
-    with patch('app.agents.factory.create_model') as mock_client:
+    with patch('app.agents.core.factory.create_model') as mock_client:
         mock_response = AsyncMock()
         mock_response.choices = [AsyncMock()]
         mock_response.choices[0].message = AsyncMock()
@@ -82,7 +82,7 @@ async def test_complete_task_command():
     user_id = "test_user_123"
 
     # Mock the OpenAI client response
-    with patch('app.agents.factory.create_model') as mock_client:
+    with patch('app.agents.core.factory.create_model') as mock_client:
         mock_response = AsyncMock()
         mock_response.choices = [AsyncMock()]
         mock_response.choices[0].message = AsyncMock()

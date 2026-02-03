@@ -2,7 +2,7 @@
 
 import pytest
 from unittest.mock import AsyncMock, patch
-from app.agents.todo_agent import run_chatbot_agent
+from app.agents import run_chatbot_agent
 
 
 @pytest.mark.asyncio
