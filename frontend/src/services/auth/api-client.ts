@@ -2,7 +2,7 @@ import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'ax
 import { Task, CreateTaskInput, UpdateTaskInput, TaskFilters, ApiError, Reminder, ReminderType, ReminderStatus, UserPreference } from '@/types';
 import { getJwtToken } from '@/lib/auth-client';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const API_URL = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
 
 // Cache the JWT token to avoid fetching it on every request
 let cachedToken: string | null = null;

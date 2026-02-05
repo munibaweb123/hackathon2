@@ -72,7 +72,8 @@ export function ProfileForm({ onSuccess }: ProfileFormProps) {
         .find((row) => row.startsWith('better-auth.session_token='))
         ?.split('=')[1];
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/profile`, {
+      const apiUrl = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
+      const response = await fetch(`${apiUrl}/api/users/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

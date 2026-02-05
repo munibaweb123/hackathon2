@@ -19,7 +19,10 @@ import {
 } from '@/types/auth';
 
 // Base API URL from environment
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// For GKE deployment with Ingress, use same origin (browser) or env var (server-side)
+const API_BASE_URL = typeof window !== 'undefined'
+  ? window.location.origin  // Browser: use same domain as frontend (Ingress routes /api to backend)
+  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');  // Server-side: use env var
 
 // Create axios instance for auth requests
 const authApi = axios.create({

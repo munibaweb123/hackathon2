@@ -6,7 +6,10 @@
 import axios from 'axios';
 import { clearCachedToken } from '@/services/auth/api-client';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Use window.location.origin in browser for Ingress routing
+const API_BASE_URL = typeof window !== 'undefined'
+  ? window.location.origin
+  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
 
 interface LoginCredentials {
   email: string;

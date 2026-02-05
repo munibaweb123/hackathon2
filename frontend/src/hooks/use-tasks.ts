@@ -39,10 +39,10 @@ export function useTasks() {
     filters.order
   ]);
 
-  const previousFiltersKeyRef = useRef<string>(filtersKey);
+  const previousFiltersKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
-    // Only fetch if filters actually changed
+    // Fetch on first mount or when filters change
     if (previousFiltersKeyRef.current === filtersKey) {
       return;
     }

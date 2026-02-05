@@ -321,6 +321,42 @@ class TodoChatKitServer(ChatKitServer):
 
         if not priority_match_found and (any(input_lower.startswith(keyword) for keyword in ["update", "edit", "change", "rename", "add description", "set description", "add note"]) or urdu_update):
             logger.info(f"User {user_id} requested to update a task")
+
+            # NEW PATTERN: Handle "update task <ID> <new_title>" - simple ID-based update
+            task_id_update_match = re.search(r'(?:update|edit|change)\s+task\s+(\d+)\s+(.+)$', input, re.IGNORECASE)
+            if task_id_update_match:
+                task_id = int(task_id_update_match.group(1))
+                new_content = task_id_update_match.group(2).strip()
+
+                logger.info(f"Updating task ID {task_id} with new title: '{new_content}' for user {user_id}")
+
+                # Update the task by ID
+                result = await update_task_for_user(task_id, user_id, agent_context=agent_context, title=new_content)
+
+                if result.get("status") == "success":
+                    updated_task = result.get("task", {})
+                    logger.info(f"Task {task_id} updated to '{updated_task.get('title')}' for user {user_id}")
+                    return {
+                        "status": "success",
+                        "thread_id": thread_id,
+                        "user_id": user_id,
+                        "input": input,
+                        "response_type": "task_updated",
+                        "data": result,
+                        "task_title": updated_task.get("title"),
+                        "context": [msg.content for msg in conversation_context[:5]]
+                    }
+                else:
+                    return {
+                        "status": "error",
+                        "thread_id": thread_id,
+                        "user_id": user_id,
+                        "input": input,
+                        "response_type": "task_not_found",
+                        "message": result.get("message", f"Could not find task {task_id}"),
+                        "context": [msg.content for msg in conversation_context[:5]]
+                    }
+
             # Extract task ID and update details from the input
 
             # Variables to hold extracted titles
@@ -737,12 +773,18 @@ class TodoChatKitServer(ChatKitServer):
         if any(input_lower.startswith(keyword) for keyword in complete_keywords_en) or urdu_complete:
             logger.info(f"User {user_id} requested to complete a task")
 
-            # Try to extract task ID - only match "task N" or standalone number at end
-            # Don't match numbers embedded in titles like "phase 2"
-            task_id_match = re.search(r'\btask\s+(\d+)\b', input_lower) or re.search(r'(?:complete|finish|done|mark\s+(?:as\s+)?completed?)\s+(\d+)$', input_lower)
-
-            # Try to extract task title in quotes: complete task "title" or complete "title"
+            # Try to extract task title in quotes FIRST: complete task "title" or complete "title"
             task_title_match = re.search(r'(?:complete|finish|done|mark\s+(?:as\s+)?completed?)\s+(?:task\s+)?[\'"]([^\'"]+)[\'"]', input, re.IGNORECASE)
+
+            # Try to extract task ID - only match "task N" where N is just digits and nothing after
+            # Don't match "complete task phase 5" as ID match
+            task_id_match = None
+            id_pattern_match = re.search(r'\btask\s+(\d+)(?:\s|$)', input_lower)
+            if id_pattern_match:
+                # Check if there's nothing meaningful after the number (just whitespace or end of string)
+                after_number = input_lower[id_pattern_match.end():].strip()
+                if not after_number or after_number in ['.', '!', '?']:  # Only punctuation allowed after
+                    task_id_match = id_pattern_match
 
             # Also try to extract title without quotes after keywords
             task_title_no_quotes = None
@@ -832,11 +874,17 @@ class TodoChatKitServer(ChatKitServer):
         if any(keyword in input_lower for keyword in delete_keywords_en) or urdu_delete:
             logger.info(f"User {user_id} requested to delete a task")
 
-            # Try to extract task ID - only match "task N" or standalone number at end
-            task_id_match = re.search(r'\btask\s+(\d+)\b', input_lower) or re.search(r'(?:delete|remove)\s+(\d+)$', input_lower)
-
-            # Try to extract task title in quotes: delete task "title" or delete "title"
+            # Try to extract task title in quotes FIRST: delete task "title" or delete "title"
             task_title_match = re.search(r'(?:delete|remove)\s+(?:task\s+)?[\'"]([^\'"]+)[\'"]', input, re.IGNORECASE)
+
+            # Try to extract task ID - only match "task N" where N is just digits and nothing after
+            task_id_match = None
+            id_pattern_match = re.search(r'\btask\s+(\d+)(?:\s|$)', input_lower)
+            if id_pattern_match:
+                # Check if there's nothing meaningful after the number
+                after_number = input_lower[id_pattern_match.end():].strip()
+                if not after_number or after_number in ['.', '!', '?']:
+                    task_id_match = id_pattern_match
 
             # Also try to extract title without quotes after keywords
             task_title_no_quotes = None

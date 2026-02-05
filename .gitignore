@@ -163,3 +163,6 @@ yarn-error.log*
 *.sqlite
 *.sqlite3minikube-linux-amd64
 *.exe
+
+# Helm secret values
+helm-charts/todo-app/values-gke.yaml

@@ -37,6 +37,8 @@ spec:
               value: {{ .Values.secrets.jwtSecret | quote }}
             - name: BETTER_AUTH_SECRET
               value: {{ .Values.secrets.betterAuthSecret | quote }}
+            - name: OPENAI_API_KEY
+              value: {{ .Values.secrets.openaiApiKey | quote }}
             - name: LOG_LEVEL
               value: {{ .Values.backend.logLevel | quote }}
             - name: CORS_ORIGINS

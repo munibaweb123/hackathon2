@@ -707,3 +707,105 @@ def update_task_with_tags(
             session.commit()
 
         return task
+
+
+def get_task_by_title(title: str, user_id: str) -> Optional[Task]:
+    """
+    Get a task by its title (case-insensitive search).
+
+    Args:
+        title: Title of the task (case-insensitive)
+        user_id: ID of the user who owns the task
+
+    Returns:
+        Task object if found, None otherwise
+    """
+    from ..core.database import engine
+
+    with Session(engine) as session:
+        # Case-insensitive search using ilike
+        statement = select(Task).where(
+            Task.user_id == user_id,
+            Task.title.ilike(f"%{title}%")  # Partial match, case-insensitive
+        )
+        tasks = session.exec(statement).all()
+
+        # If multiple matches, prefer exact match (case-insensitive)
+        if len(tasks) > 1:
+            for task in tasks:
+                if task.title.lower() == title.lower():
+                    return task
+
+        # Return first match or None
+        return tasks[0] if tasks else None
+
+
+def complete_task_by_title(title: str, user_id: str, completed: bool = True) -> Optional[Task]:
+    """
+    Mark a task as completed/incomplete by its title.
+
+    Args:
+        title: Title of the task (case-insensitive)
+        user_id: ID of the user who owns the task
+        completed: Whether to mark as completed (default True)
+
+    Returns:
+        Updated Task object if successful, None if not found
+    """
+    # Find the task by title
+    task = get_task_by_title(title, user_id)
+
+    if not task:
+        return None
+
+    # Update the task using existing update_task function
+    return update_task(task.id, user_id, completed=completed)
+
+
+def delete_task_by_title(title: str, user_id: str) -> bool:
+    """
+    Delete a task by its title.
+
+    Args:
+        title: Title of the task (case-insensitive)
+        user_id: ID of the user who owns the task
+
+    Returns:
+        True if task was deleted, False if not found
+    """
+    # Find the task by title
+    task = get_task_by_title(title, user_id)
+
+    if not task:
+        return False
+
+    # Delete the task using existing delete_task function
+    from ..core.database import engine
+    from ..models.reminder import Reminder
+    from ..models.task_tag import TaskTag
+
+    with Session(engine) as session:
+        # Verify the task belongs to the user
+        statement = select(Task).where(Task.id == task.id, Task.user_id == user_id)
+        task_to_delete = session.exec(statement).first()
+
+        if not task_to_delete:
+            return False
+
+        # Delete associated reminders first (to avoid foreign key constraint)
+        reminder_stmt = select(Reminder).where(Reminder.task_id == task.id)
+        reminders = session.exec(reminder_stmt).all()
+        for reminder in reminders:
+            session.delete(reminder)
+
+        # Delete associated tags (to avoid foreign key constraint)
+        tag_stmt = select(TaskTag).where(TaskTag.task_id == task.id)
+        task_tags = session.exec(tag_stmt).all()
+        for task_tag in task_tags:
+            session.delete(task_tag)
+
+        # Now delete the task
+        session.delete(task_to_delete)
+        session.commit()
+
+        return True

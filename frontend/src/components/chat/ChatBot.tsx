@@ -153,7 +153,8 @@ export function ChatBot({ userId, onTaskChange }: ChatBotProps) {
 
     try {
       // Use the ChatKitClient instead of direct fetch to ensure JWT token is included
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/chat/chatkit`, {
+      const apiUrl = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
+      const response = await fetch(`${apiUrl}/api/chat/chatkit`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -182,10 +183,12 @@ export function ChatBot({ userId, onTaskChange }: ChatBotProps) {
         }
       }
     } catch (error) {
-      console.error('Chat error:', error);
+      console.error('[ChatBot] Error details:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[ChatBot] Error message:', errorMessage);
       setMessages(prev => [...prev, {
         id: `error-${Date.now()}`,
-        content: 'Sorry, I encountered an error. Please try again.',
+        content: `Sorry, I encountered an error: ${errorMessage}`,
         role: 'assistant',
         timestamp: new Date(),
       }]);

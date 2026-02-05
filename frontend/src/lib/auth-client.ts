@@ -29,7 +29,7 @@ export const clearStoredToken = (): void => {
 // Create auth client with bearer token support (per Better Auth docs)
 // This configures the client to automatically include Bearer token in all requests
 export const authClient = createAuthClient({
-  baseURL: process.env.NEXT_PUBLIC_BETTER_AUTH_URL || 'http://localhost:3000',
+  baseURL: typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_BETTER_AUTH_URL || 'http://localhost:3000'),
   plugins: [
     jwtClient(),
   ],
@@ -155,7 +155,7 @@ export async function getJwtToken(): Promise<string | null> {
 
     // Fallback 2: Direct fetch from backend's token exchange endpoint
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const backendUrl = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
       console.log('[getJwtToken] Fetching from backend token endpoint:', `${backendUrl}/api/auth/token`);
 
       const response = await fetch(`${backendUrl}/api/auth/token`, {

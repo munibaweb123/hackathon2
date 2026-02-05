@@ -42,7 +42,7 @@ export class ChatKitClient {
   private onConnectionStatusChange?: (status: string) => void;
 
   constructor(config?: { retryConfig?: Partial<RetryConfig>; onConnectionStatusChange?: (status: string) => void }) {
-    this.baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    this.baseUrl = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
     this.retryConfig = { ...DEFAULT_RETRY_CONFIG, ...config?.retryConfig };
     this.onConnectionStatusChange = config?.onConnectionStatusChange;
   }

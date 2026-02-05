@@ -1,7 +1,10 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import { Task, CreateTaskInput, UpdateTaskInput, TaskFilters, ApiError, Reminder, ReminderType, ReminderStatus, UserPreference, Tag } from '@/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// For GKE deployment with Ingress, use same origin (browser) or env var (server-side)
+const API_URL = typeof window !== 'undefined'
+  ? window.location.origin  // Browser: use same domain as frontend (Ingress routes /api to backend)
+  : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');  // Server-side: use env var
 
 class ApiClient {
   private client: AxiosInstance;

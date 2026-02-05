@@ -103,7 +103,8 @@ export function useAuth() {
 
       // Use backend logout as well if needed
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/logout`, {
+        const apiUrl = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
+        const response = await fetch(`${apiUrl}/api/auth/logout`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -141,7 +142,8 @@ export function useAuth() {
       }
 
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/auth/me`, {
+        const apiUrl = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000');
+        const response = await fetch(`${apiUrl}/api/auth/me`, {
           headers: {
             'Authorization': `Bearer ${token}`,
           },

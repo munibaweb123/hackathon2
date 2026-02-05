@@ -194,7 +194,16 @@ let wsClient: WebSocketClient | null = null;
  */
 export function getWebSocketClient(): WebSocketClient {
   if (!wsClient) {
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws/tasks/';
+    // Use window.location for browser, env var for server-side
+    let wsUrl: string;
+    if (typeof window !== 'undefined') {
+      // Browser: construct WS URL from current origin
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      wsUrl = `${protocol}//${window.location.host}/ws/tasks/`;
+    } else {
+      // Server-side: use env var
+      wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws/tasks/';
+    }
     wsClient = new WebSocketClient(wsUrl);
   }
   return wsClient;

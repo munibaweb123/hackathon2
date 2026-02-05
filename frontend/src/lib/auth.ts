@@ -10,6 +10,8 @@ const pool = new Pool({
 });
 
 // Better Auth configuration with Neon PostgreSQL
+// Note: Better Auth is initialized server-side, so we can't use window.location.origin here
+// The client-side Better Auth client (auth-client.ts) handles the baseURL properly
 export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_BETTER_AUTH_URL || 'http://localhost:3000',
   secret: process.env.BETTER_AUTH_SECRET,
@@ -48,7 +50,7 @@ export const auth = betterAuth({
     'http://localhost:3000',
     'http://localhost:8000',
     process.env.NEXT_PUBLIC_BETTER_AUTH_URL || 'http://localhost:3000',
-    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
+    typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'),
     process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000',
   ],
 
