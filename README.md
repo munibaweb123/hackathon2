@@ -10,7 +10,7 @@ A comprehensive full-stack todo application demonstrating progressive software d
 | Phase II | Web App | ✅ Completed | Full-stack REST API with authentication |
 | Phase III | AI Chatbot | ✅ Completed | Natural language task management |
 | Phase IV | Kubernetes | ✅ Completed | Local K8s deployment with Helm charts |
-| Phase V | Cloud Deploy | 🚧 In Progress | Production cloud deployment with event-driven architecture |
+| Phase V | Cloud Deploy | ✅ Completed | Production GKE deployment with event-driven architecture |
 
 ---
 
