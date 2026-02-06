@@ -29,7 +29,7 @@ export const clearStoredToken = (): void => {
 // Create auth client with bearer token support (per Better Auth docs)
 // This configures the client to automatically include Bearer token in all requests
 export const authClient = createAuthClient({
-  baseURL: typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_BETTER_AUTH_URL || 'http://localhost:3000'),
+  baseURL: typeof window !== 'undefined' ? window.location.origin : (process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_BETTER_AUTH_URL || 'http://localhost:3000'),
   plugins: [
     jwtClient(),
   ],

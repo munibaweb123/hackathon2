@@ -26,7 +26,7 @@ const API_BASE_URL = typeof window !== 'undefined'
 
 // Create axios instance for auth requests
 const authApi = axios.create({
-  baseURL: `${API_BASE_URL}/api`,
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -102,7 +102,7 @@ export const registerUser = async (
 ): Promise<UserRegistrationResponse> => {
   try {
     const response: AxiosResponse<UserRegistrationResponse> = await authApi.post(
-      '/auth/register',
+      '/api/auth/register',
       userData
     );
 
@@ -141,7 +141,7 @@ export const loginUser = async (
   // First, try the standard backend authentication
   try {
     const response: AxiosResponse<UserLoginResponse> = await authApi.post(
-      '/auth/login',
+      '/api/auth/login',
       loginData
     );
 
@@ -206,7 +206,7 @@ export const loginUser = async (
  */
 export const logoutUser = async (): Promise<LogoutResponse> => {
   try {
-    const response: AxiosResponse<LogoutResponse> = await authApi.post('/auth/logout');
+    const response: AxiosResponse<LogoutResponse> = await authApi.post('/api/auth/logout');
 
     // Clear tokens on logout
     localStorage.removeItem('access_token');
@@ -232,7 +232,7 @@ export const logoutUser = async (): Promise<LogoutResponse> => {
  */
 export const getCurrentUser = async (): Promise<User> => {
   try {
-    const response: AxiosResponse<{ user: User }> = await authApi.get('/auth/me');
+    const response: AxiosResponse<{ user: User }> = await authApi.get('/api/auth/me');
     return response.data.user;
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 401) {
@@ -252,7 +252,7 @@ export const refreshTokenApi = async (
 ): Promise<TokenRefreshResponse> => {
   try {
     const response: AxiosResponse<TokenRefreshResponse> = await authApi.post(
-      '/auth/refresh',
+      '/api/auth/refresh',
       refreshData
     );
     return response.data;
@@ -279,7 +279,7 @@ export const requestPasswordReset = async (
 ): Promise<PasswordResetResponse> => {
   try {
     const response: AxiosResponse<PasswordResetResponse> = await authApi.post(
-      '/auth/forgot-password',
+      '/api/auth/forgot-password',
       resetData
     );
     return response.data;
@@ -306,7 +306,7 @@ export const confirmPasswordReset = async (
 ): Promise<PasswordResetResponse> => {
   try {
     const response: AxiosResponse<PasswordResetResponse> = await authApi.post(
-      '/auth/reset-password',
+      '/api/auth/reset-password',
       resetData
     );
     return response.data;
@@ -333,7 +333,7 @@ export const updateUserProfile = async (
 ): Promise<UserProfileResponse> => {
   try {
     const response: AxiosResponse<{ user: UserProfileResponse }> = await authApi.put(
-      '/users/profile',
+      '/api/users/profile',
       profileData
     );
     return response.data.user;

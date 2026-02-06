@@ -49,8 +49,8 @@ export const auth = betterAuth({
   trustedOrigins: [
     'http://localhost:3000',
     'http://localhost:8000',
-    process.env.NEXT_PUBLIC_BETTER_AUTH_URL || 'http://localhost:3000',
-    typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'),
+    process.env.BETTER_AUTH_URL || process.env.NEXT_PUBLIC_BETTER_AUTH_URL || 'http://localhost:3000',
+    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
     process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000',
   ],
 
